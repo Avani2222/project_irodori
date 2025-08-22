@@ -56,9 +56,7 @@ class HyperTable:
                     f"Number of wavelengths ({len(wl_array)}) does not match number of bands ({data.shape[1]})."
                 )
             self.wavelengths = wl_array
-        else:
-            # If none provided, assume DataFrame columns represent wavelengths
-            self.wavelengths = np.array(data.columns, dtype=float) if all(str(c).replace('.','',1).isdigit() for c in data.columns) else None
+        
 
         self.metadata = metadata if metadata is not None else {}
 
@@ -92,7 +90,23 @@ class HyperTable:
             Array of spectral values for that pixel.
         """
         return self.data.iloc[index].values
+    def set_wavelengths(self, start: float, end: float) -> None:
+        """
+        Generate and assign evenly spaced wavelengths between start and end.
 
+        Parameters
+        ----------
+        start : float
+            Starting wavelength (e.g., 400 nm).
+        end : float
+            Ending wavelength (e.g., 1000 nm).
+
+        Notes
+        -----
+        The number of wavelengths generated will equal the number of bands (columns)
+        in the dataset.
+        """
+        self.wavelengths = np.linspace(start, end, self.bands)
     def get_band(self, band_index: int) -> np.ndarray:
         """
         Get all sample values for a given spectral band.
