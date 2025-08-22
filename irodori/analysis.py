@@ -267,3 +267,188 @@ def first_derivative(hyper_table: "HyperTable",
         plt.show()
 
     return derivative_ht
+
+def plot_spectral_signatures(hyper_table: "HyperTable",
+                             sample_indices: list = None,
+                             labels: bool = True,
+                             title: str = "Spectral Signatures",
+                             figsize: tuple = (8, 6),
+                             alpha: float = 0.8,
+                             cmap: str = "tab10"):
+    """
+    Plot spectral signatures for selected samples from a HyperTable.
+
+    Parameters
+    ----------
+    hyper_table : HyperTable
+        Hyperspectral data container with wavelengths and spectra.
+    sample_indices : list of int, optional
+        List of sample indices to plot. If None, a few random samples are chosen.
+    labels : bool, default=True
+        Whether to show sample labels in the legend (if available).
+    title : str, default="Spectral Signatures"
+        Title of the plot.
+    figsize : tuple of int, default=(8, 6)
+        Size of the figure.
+    alpha : float, default=0.8
+        Transparency of the plotted curves.
+    cmap : str, default="tab10"
+        Colormap used to differentiate curves.
+
+    Returns
+    -------
+    None
+        Displays a matplotlib plot.
+    """
+    if hyper_table.wavelengths is None:
+        wavelengths = np.arange(hyper_table.bands)
+    else:
+        wavelengths = hyper_table.wavelengths
+
+    if sample_indices is None:
+        sample_indices = np.random.choice(hyper_table.samples,
+                                          size=min(5, hyper_table.samples),
+                                          replace=False)
+
+    plt.figure(figsize=figsize)
+    colors = plt.get_cmap(cmap)(np.linspace(0, 1, len(sample_indices)))
+
+    for i, idx in enumerate(sample_indices):
+        spectrum = hyper_table.get_pixel(idx)
+        if labels and hyper_table.labels is not None:
+            lbl = f"Sample {idx} ({hyper_table.labels.iloc[idx]})"
+        else:
+            lbl = f"Sample {idx}"
+        plt.plot(wavelengths, spectrum,
+                 label=lbl,
+                 color=colors[i],
+                 alpha=alpha)
+
+    plt.xlabel("Wavelength (nm)")
+    plt.ylabel("Reflectance")
+    plt.title(title)
+    plt.legend()
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+    plt.show()
+
+
+
+def second_derivative(hyper_table: "HyperTable",
+                      window_length: int = 7,
+                      polyorder: int = 2) -> "HyperTable":
+    """
+    Compute the second derivative spectra of all samples using Savitzky–Golay filter.
+
+    Parameters
+    ----------
+    hyper_table : HyperTable
+        Hyperspectral data container.
+    window_length : int, default=7
+        The length of the filter window (number of coefficients).
+        Must be odd and >= polyorder + 2.
+    polyorder : int, default=2
+        The order of the polynomial used to fit the samples.
+
+    Returns
+    -------
+    HyperTable
+        A new HyperTable with second derivative spectra.
+    """
+    from scipy.signal import savgol_filter
+
+    if window_length >= hyper_table.bands:
+        raise ValueError("window_length must be smaller than number of bands.")
+    if window_length % 2 == 0:
+        raise ValueError("window_length must be odd.")
+
+    # Apply Savitzky–Golay filter for 2nd derivative along each row
+    deriv_data = savgol_filter(hyper_table.data.values,
+                               window_length=window_length,
+                               polyorder=polyorder,
+                               deriv=2,
+                               axis=1)
+
+    # Create new DataFrame preserving column names
+    deriv_df = pd.DataFrame(deriv_data, columns=hyper_table.data.columns)
+
+    return HyperTable(
+        data=pd.concat([pd.Series(hyper_table.labels, name="Label"), deriv_df], axis=1),
+        wavelengths=hyper_table.wavelengths,
+        metadata={**hyper_table.metadata, "transform": "second_derivative"}
+    )
+
+
+
+def anova_f_test(hyper_table: "HyperTable",
+                 top_k: int = 10,
+                 visualize: bool = True,
+                 figsize: tuple = (10, 5)) -> pd.DataFrame:
+    """
+    Perform ANOVA F-test to rank spectral bands by discriminative power.
+
+    Parameters
+    ----------
+    hyper_table : HyperTable
+        Hyperspectral data container with labels.
+    top_k : int, default=10
+        Number of top-ranked bands to return.
+    visualize : bool, default=True
+        Whether to visualize F-values across wavelengths.
+    figsize : tuple, default=(10, 5)
+        Figure size for visualization.
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame with columns: ['Band_Index', 'Wavelength', 'F_value', 'p_value'],
+        sorted by F_value (descending).
+    """
+    if hyper_table.labels is None:
+        raise ValueError("Labels are required for ANOVA F-test.")
+
+    X = hyper_table.data.values
+    y = hyper_table.labels
+
+    # Perform one-way ANOVA F-test
+    F_vals, p_vals = f_classif(X, y)
+
+    # Build result table
+    result = pd.DataFrame({
+        "Band_Index": np.arange(hyper_table.bands),
+        "Wavelength": (hyper_table.wavelengths
+                       if hyper_table.wavelengths is not None
+                       else np.arange(hyper_table.bands)),
+        "F_value": F_vals,
+        "p_value": p_vals
+    }).sort_values(by="F_value", ascending=False)
+
+    # Visualization
+    if visualize:
+        wavelengths = (hyper_table.wavelengths
+                       if hyper_table.wavelengths is not None
+                       else np.arange(hyper_table.bands))
+
+        plt.figure(figsize=figsize)
+        plt.plot(wavelengths, F_vals, label="F-value", color="steelblue")
+        plt.xlabel("Wavelength (nm)")
+        plt.ylabel("F-value")
+        plt.title("ANOVA F-test across spectral bands")
+        plt.grid(True, alpha=0.3)
+
+        # Highlight top_k bands
+        top_bands = result.head(top_k)
+        plt.scatter(top_bands["Wavelength"], top_bands["F_value"],
+                    color="red", label=f"Top {top_k} bands", zorder=5)
+
+        for _, row in top_bands.iterrows():
+            plt.text(row["Wavelength"], row["F_value"],
+                     f"{int(row['Band_Index'])}", fontsize=8,
+                     ha="center", va="bottom", color="darkred")
+
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
+
+    return result.head(top_k)
+
