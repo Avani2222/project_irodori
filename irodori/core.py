@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 from typing import Optional, Union, Dict, Any, List
 
+
 class HyperTable:
     """
     A class to store and manage hyperspectral data in tabular (DataFrame) format.
@@ -12,6 +13,8 @@ class HyperTable:
 
     Attributes
     ----------
+    labels : np.ndarray or None
+        Array of labels for each sample (first column of DataFrame if present).
     data : pd.DataFrame
         Hyperspectral dataset with samples as rows and bands as columns.
     wavelengths : np.ndarray or None
@@ -31,8 +34,9 @@ class HyperTable:
         ----------
         data : pd.DataFrame
             Hyperspectral data in tabular format (rows = samples, cols = bands).
+            Assumes the first column contains labels.
         wavelengths : list or np.ndarray, optional
-            Wavelengths corresponding to columns. If None, column names will be used.
+            Wavelengths corresponding to columns (excluding labels).
         metadata : dict, optional
             Extra metadata about the dataset.
         
@@ -44,19 +48,22 @@ class HyperTable:
         if not isinstance(data, pd.DataFrame):
             raise ValueError("Input 'data' must be a pandas DataFrame.")
 
-        self.data = data
+        # Separate labels (first column)
+        self.labels = data.iloc[:, 0].values
+        self.data = data.iloc[:, 1:]
 
         # Wavelengths validation
         if wavelengths is not None:
             wl_array = np.asarray(wavelengths)
             if wl_array.ndim != 1:
                 raise ValueError("Wavelengths must be a 1D array.")
-            if len(wl_array) != data.shape[1]:
+            if len(wl_array) != self.data.shape[1]:
                 raise ValueError(
-                    f"Number of wavelengths ({len(wl_array)}) does not match number of bands ({data.shape[1]})."
+                    f"Number of wavelengths ({len(wl_array)}) does not match number of bands ({self.data.shape[1]})."
                 )
             self.wavelengths = wl_array
-        
+        else:
+            self.wavelengths = None
 
         self.metadata = metadata if metadata is not None else {}
 
@@ -90,6 +97,7 @@ class HyperTable:
             Array of spectral values for that pixel.
         """
         return self.data.iloc[index].values
+
     def set_wavelengths(self, start: float, end: float) -> None:
         """
         Generate and assign evenly spaced wavelengths between start and end.
@@ -100,13 +108,9 @@ class HyperTable:
             Starting wavelength (e.g., 400 nm).
         end : float
             Ending wavelength (e.g., 1000 nm).
-
-        Notes
-        -----
-        The number of wavelengths generated will equal the number of bands (columns)
-        in the dataset.
         """
         self.wavelengths = np.linspace(start, end, self.bands)
+
     def get_band(self, band_index: int) -> np.ndarray:
         """
         Get all sample values for a given spectral band.
@@ -144,4 +148,4 @@ class HyperTable:
         else:
             wl_range_str = "wavelengths=UNDEFINED"
 
-        return f"HyperTable(shape=({rows}, {cols}), {wl_range_str})"
+        return f"HyperTable(samples={rows}, bands={cols}, labels=YES, {wl_range_str})"
