@@ -452,3 +452,281 @@ def anova_f_test(hyper_table: "HyperTable",
 
     return result.head(top_k)
 
+
+
+def spectral_angle_mapper(hyper_table: "HyperTable",
+                          reference: np.ndarray,
+                          visualize: bool = True,
+                          in_degrees: bool = True,
+                          figsize: tuple = (8, 4)) -> np.ndarray:
+    """
+    Perform Spectral Angle Mapper (SAM) similarity calculation.
+
+    Parameters
+    ----------
+    hyper_table : HyperTable
+        Hyperspectral data container.
+    reference : np.ndarray
+        Reference spectrum (1D array of length = number of bands).
+    visualize : bool, default=True
+        Whether to visualize SAM scores across samples.
+    in_degrees : bool, default=True
+        Whether to return angles in degrees (otherwise radians).
+    figsize : tuple, default=(8, 4)
+        Figure size for visualization.
+
+    Returns
+    -------
+    np.ndarray
+        SAM angles for each sample (lower = more similar).
+    """
+    X = hyper_table.data.values
+    ref = np.asarray(reference)
+
+    if ref.shape[0] != hyper_table.bands:
+        raise ValueError("Reference spectrum must match number of bands.")
+
+    # Normalize spectra
+    dot_products = np.sum(X * ref, axis=1)
+    norms = np.linalg.norm(X, axis=1) * np.linalg.norm(ref)
+    cos_theta = np.clip(dot_products / norms, -1, 1)
+
+    # Convert to angle
+    angles = np.arccos(cos_theta)
+    if in_degrees:
+        angles = np.degrees(angles)
+
+    # Visualization
+    if visualize:
+        plt.figure(figsize=figsize)
+        plt.plot(angles, "o-", color="darkorange", label="SAM Angle")
+        plt.xlabel("Sample Index")
+        plt.ylabel("Angle (degrees)" if in_degrees else "Angle (radians)")
+        plt.title("Spectral Angle Mapper (SAM)")
+        plt.grid(True, alpha=0.3)
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
+
+    return angles
+
+def spectral_information_divergence(hyper_table: "HyperTable",
+                                    reference: np.ndarray,
+                                    visualize: bool = True,
+                                    figsize: tuple = (8, 4)) -> np.ndarray:
+    """
+    Perform Spectral Information Divergence (SID) similarity calculation.
+
+    Parameters
+    ----------
+    hyper_table : HyperTable
+        Hyperspectral data container.
+    reference : np.ndarray
+        Reference spectrum (1D array of length = number of bands).
+    visualize : bool, default=True
+        Whether to visualize SID scores across samples.
+    figsize : tuple, default=(8, 4)
+        Figure size for visualization.
+
+    Returns
+    -------
+    np.ndarray
+        SID values for each sample (lower = more similar).
+    """
+    X = hyper_table.data.values
+    ref = np.asarray(reference, dtype=float)
+
+    if ref.shape[0] != hyper_table.bands:
+        raise ValueError("Reference spectrum must match number of bands.")
+
+    # Normalize to probability distributions
+    X_prob = X / X.sum(axis=1, keepdims=True)
+    ref_prob = ref / ref.sum()
+
+    # Avoid division by zero
+    eps = 1e-12
+    X_prob = np.clip(X_prob, eps, 1)
+    ref_prob = np.clip(ref_prob, eps, 1)
+
+    # Compute SID (symmetric KL divergence)
+    sid_scores = []
+    for p in X_prob:
+        sid = np.sum(p * np.log(p / ref_prob)) + np.sum(ref_prob * np.log(ref_prob / p))
+        sid_scores.append(sid)
+
+    sid_scores = np.array(sid_scores)
+
+    # Visualization
+    if visualize:
+        plt.figure(figsize=figsize)
+        plt.plot(sid_scores, "o-", color="teal", label="SID")
+        plt.xlabel("Sample Index")
+        plt.ylabel("SID Value")
+        plt.title("Spectral Information Divergence (SID)")
+        plt.grid(True, alpha=0.3)
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
+
+    return sid_scores
+
+def euclidean_distance(hyper_table: "HyperTable",
+                       reference: np.ndarray,
+                       visualize: bool = True,
+                       figsize: tuple = (8, 4)) -> np.ndarray:
+    """
+    Compute Euclidean distance between each pixel spectrum and a reference spectrum.
+
+    Parameters
+    ----------
+    hyper_table : HyperTable
+        Hyperspectral data container.
+    reference : np.ndarray
+        Reference spectrum (1D array of length = number of bands).
+    visualize : bool, default=True
+        Whether to visualize distances across samples.
+    figsize : tuple, default=(8, 4)
+        Figure size for visualization.
+
+    Returns
+    -------
+    np.ndarray
+        Euclidean distances for each sample (lower = more similar).
+    """
+    X = hyper_table.data.values
+    ref = np.asarray(reference, dtype=float)
+
+    if ref.shape[0] != hyper_table.bands:
+        raise ValueError("Reference spectrum must match number of bands.")
+
+    # Euclidean distance calculation
+    distances = np.linalg.norm(X - ref, axis=1)
+
+    # Visualization
+    if visualize:
+        plt.figure(figsize=figsize)
+        plt.plot(distances, "o-", color="purple", label="Euclidean Distance")
+        plt.xlabel("Sample Index")
+        plt.ylabel("Distance")
+        plt.title("Euclidean Distance to Reference Spectrum")
+        plt.grid(True, alpha=0.3)
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
+
+    return distances
+
+
+def band_ratio(hyper_table: "HyperTable",
+               band1: int,
+               band2: int,
+               visualize: bool = True,
+               figsize: tuple = (8, 4)) -> np.ndarray:
+    """
+    Compute band ratio (R_band1 / R_band2) for each sample.
+
+    Parameters
+    ----------
+    hyper_table : HyperTable
+        Hyperspectral data container.
+    band1 : int
+        Index of the numerator band (0-based index).
+    band2 : int
+        Index of the denominator band (0-based index).
+    visualize : bool, default=True
+        Whether to visualize the band ratio values across samples.
+    figsize : tuple, default=(8, 4)
+        Figure size for visualization.
+
+    Returns
+    -------
+    np.ndarray
+        Band ratio values for each sample.
+    """
+    if band1 >= hyper_table.bands or band2 >= hyper_table.bands:
+        raise ValueError("Band indices must be within the available range.")
+
+    band1_values = hyper_table.get_band(band1).astype(float)
+    band2_values = hyper_table.get_band(band2).astype(float)
+
+    # Avoid division by zero
+    eps = 1e-12
+    ratios = band1_values / (band2_values + eps)
+
+    # Visualization
+    if visualize:
+        plt.figure(figsize=figsize)
+        plt.plot(ratios, "o-", color="darkgreen",
+                 label=f"Band Ratio (Band {band1} / Band {band2})")
+        plt.xlabel("Sample Index")
+        plt.ylabel("Ratio Value")
+        plt.title("Band Ratio Analysis")
+        plt.grid(True, alpha=0.3)
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
+
+    return ratios
+
+def continuum_removal(hyper_table: "HyperTable",
+                      sample_index: int,
+                      visualize: bool = True,
+                      figsize: tuple = (8, 5)) -> np.ndarray:
+    """
+    Apply continuum removal to a given pixel spectrum.
+
+    Parameters
+    ----------
+    hyper_table : HyperTable
+        Hyperspectral data container.
+    sample_index : int
+        Index of the sample (row) to process.
+    visualize : bool, default=True
+        Whether to plot the original spectrum, continuum, and removed spectrum.
+    figsize : tuple, default=(8, 5)
+        Size of the plot when visualizing.
+
+    Returns
+    -------
+    np.ndarray
+        Continuum-removed spectrum (values between 0–1).
+    """
+    if hyper_table.wavelengths is None:
+        raise ValueError("Wavelengths must be defined for continuum removal.")
+
+    # Extract spectrum and wavelengths
+    spectrum = hyper_table.get_pixel(sample_index).astype(float)
+    wl = hyper_table.wavelengths
+
+    # Compute convex hull (continuum line)
+    points = np.column_stack((wl, spectrum))
+    hull = ConvexHull(points)
+
+    # Get upper hull indices (continuum points)
+    hull_indices = hull.vertices
+    hull_indices = np.sort(hull_indices)
+    wl_hull = wl[hull_indices]
+    spec_hull = spectrum[hull_indices]
+
+    # Linear interpolation of continuum
+    continuum = np.interp(wl, wl_hull, spec_hull)
+
+    # Continuum removal
+    continuum_removed = spectrum / (continuum + 1e-12)
+
+    # Visualization
+    if visualize:
+        plt.figure(figsize=figsize)
+        plt.plot(wl, spectrum, label="Original Spectrum", color="blue")
+        plt.plot(wl, continuum, label="Continuum", color="red", linestyle="--")
+        plt.plot(wl, continuum_removed, label="Continuum Removed", color="green")
+        plt.xlabel("Wavelength (nm)")
+        plt.ylabel("Reflectance (a.u.)")
+        plt.title(f"Continuum Removal (Sample {sample_index})")
+        plt.legend()
+        plt.grid(True, alpha=0.3)
+        plt.tight_layout()
+        plt.show()
+
+    return continuum_removed
+
