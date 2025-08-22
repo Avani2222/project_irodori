@@ -12,12 +12,15 @@ def load_csv(filepath: str,
     """
     Load hyperspectral data from a CSV file into a HyperTable object.
 
+    Assumes the first column contains labels, and the remaining columns 
+    are spectral band values.
+
     Parameters
     ----------
     filepath : str
-        Path to the CSV file. Rows = samples, Columns = spectral bands.
+        Path to the CSV file. Rows = samples, Columns = [label | spectral bands].
     wavelengths : list or np.ndarray, optional
-        Explicit list of wavelengths. If None, CSV column names will be used.
+        Explicit list of wavelengths. If None, column names (excluding first column) will be used.
     metadata : dict, optional
         Extra metadata (e.g., file source, sensor type).
     header : bool, default=True
@@ -36,6 +39,8 @@ def save_csv(hyper_table: HyperTable, filepath: str, include_header: bool = True
     """
     Save a HyperTable object to a CSV file.
 
+    First column will contain labels, followed by spectral bands.
+
     Parameters
     ----------
     hyper_table : HyperTable
@@ -48,4 +53,8 @@ def save_csv(hyper_table: HyperTable, filepath: str, include_header: bool = True
     if hyper_table.data is None:
         raise ValueError("No data to save in HyperTable.")
 
-    hyper_table.data.to_csv(filepath, index=False, header=include_header)
+    # Reconstruct DataFrame with labels as the first column
+    df_out = pd.DataFrame(hyper_table.data.copy())
+    df_out.insert(0, "Label", hyper_table.labels)
+
+    df_out.to_csv(filepath, index=False, header=include_header)
