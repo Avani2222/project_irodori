@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy.spatial import ConvexHull
 from sklearn.feature_selection import f_classif
-
+from sklearn.decomposition import PCA
 
 def compute_ndvi(hyper_table: "HyperTable",
                  red_wavelength: float = 660,
