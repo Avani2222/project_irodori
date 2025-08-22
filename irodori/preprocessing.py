@@ -5,9 +5,47 @@ from sklearn.decomposition import PCA
 from scipy.spatial import distance
 from sklearn.ensemble import IsolationForest
 
+
+# ==============================
+# Helper to rebuild HyperTable
+# ==============================
+def _rebuild_hypertable(hyper_table: "HyperTable", new_data: pd.DataFrame, new_metadata: dict = None) -> "HyperTable":
+    """
+    Rebuild a HyperTable by combining labels with transformed band data.
+
+    Parameters
+    ----------
+    hyper_table : HyperTable
+        Original HyperTable object.
+    new_data : pd.DataFrame
+        Transformed spectral data (bands only, without labels).
+    new_metadata : dict, optional
+        Extra metadata to merge into the new HyperTable.
+
+    Returns
+    -------
+    HyperTable
+        A new HyperTable with labels reattached, wavelengths preserved,
+        and metadata updated.
+    """
+    df = pd.concat(
+        [pd.Series(hyper_table.labels, name="Label").reset_index(drop=True),
+         new_data.reset_index(drop=True)],
+        axis=1
+    )
+    return HyperTable(
+        df,
+        wavelengths=hyper_table.wavelengths,
+        metadata={**hyper_table.metadata, **(new_metadata or {})}
+    )
+
+
+# ==============================
+# Normalization / Standardization
+# ==============================
 def minmax_scale(hyper_table: "HyperTable", feature_range=(0, 1), axis: int = 0) -> "HyperTable":
     """
-    Apply Min–Max scaling to a HyperTable object.
+    Apply Min–Max scaling to spectral data in a HyperTable.
 
     Parameters
     ----------
@@ -17,43 +55,34 @@ def minmax_scale(hyper_table: "HyperTable", feature_range=(0, 1), axis: int = 0)
         Desired range of transformed data.
     axis : int, default=0
         Axis along which to scale:
-        - 0 → Column-wise scaling (per band, across all samples).
-        - 1 → Row-wise scaling (per sample, across all bands).
+        - 0 → Per-band (column-wise, across samples).
+        - 1 → Per-sample (row-wise, across bands).
 
     Returns
     -------
     HyperTable
-        New HyperTable object with scaled data.
+        New HyperTable with scaled data.
     """
     min_val, max_val = feature_range
 
     if axis == 0:
-        # Per-band scaling
         data_min = hyper_table.data.min(axis=0)
         data_max = hyper_table.data.max(axis=0)
         scaled_data = (hyper_table.data - data_min) / (data_max - data_min).replace(0, 1)
-
     elif axis == 1:
-        # Per-sample scaling
         data_min = hyper_table.data.min(axis=1)
         data_max = hyper_table.data.max(axis=1)
         scaled_data = (hyper_table.data.T - data_min).T / (data_max - data_min).replace(0, 1)
-
     else:
         raise ValueError("axis must be 0 (per band) or 1 (per sample).")
 
-    # Rescale to feature_range
     scaled_data = scaled_data * (max_val - min_val) + min_val
+    return _rebuild_hypertable(hyper_table, scaled_data, {"scaling": "minmax"})
 
-    return HyperTable(
-        scaled_data,
-        wavelengths=hyper_table.wavelengths,
-        metadata=hyper_table.metadata.copy()
-    )
 
 def standardize(hyper_table: "HyperTable", axis: int = 0) -> "HyperTable":
     """
-    Apply Z-score standardization to a HyperTable object.
+    Apply Z-score standardization to spectral data in a HyperTable.
 
     Parameters
     ----------
@@ -61,70 +90,84 @@ def standardize(hyper_table: "HyperTable", axis: int = 0) -> "HyperTable":
         Input HyperTable object.
     axis : int, default=0
         Axis along which to standardize:
-        - 0 → Column-wise (per band, across all samples).
-        - 1 → Row-wise (per sample, across all bands).
+        - 0 → Per-band (column-wise).
+        - 1 → Per-sample (row-wise).
 
     Returns
     -------
     HyperTable
-        New HyperTable object with standardized data.
+        New HyperTable with standardized data.
     """
     if axis == 0:
-        # Per-band standardization
         mean = hyper_table.data.mean(axis=0)
-        std = hyper_table.data.std(axis=0).replace(0, 1)  # avoid div by zero
+        std = hyper_table.data.std(axis=0).replace(0, 1)
         standardized_data = (hyper_table.data - mean) / std
-
     elif axis == 1:
-        # Per-sample standardization
         mean = hyper_table.data.mean(axis=1)
         std = hyper_table.data.std(axis=1).replace(0, 1)
         standardized_data = ((hyper_table.data.T - mean).T) / std
-
     else:
         raise ValueError("axis must be 0 (per band) or 1 (per sample).")
 
-    return HyperTable(
-        standardized_data,
-        wavelengths=hyper_table.wavelengths,
-        metadata=hyper_table.metadata.copy()
-    )
+    return _rebuild_hypertable(hyper_table, standardized_data, {"scaling": "zscore"})
 
-def apply_savgol_filter(
-    hyper_table: "HyperTable",
-    window_length: int = 11,
-    polyorder: int = 2,
-    deriv: int = 0,
-    axis: int = 1
-) -> "HyperTable":
+
+def vector_normalize(hyper_table: "HyperTable") -> "HyperTable":
     """
-    Apply Savitzky–Golay filter to hyperspectral data in a HyperTable object.
+    Apply vector normalization (L2 norm) per spectrum (row).
+
+    Each sample spectrum is scaled so its Euclidean norm equals 1:
+        x' = x / ||x||_2
 
     Parameters
     ----------
     hyper_table : HyperTable
         Input HyperTable object.
-    window_length : int, default=11
-        Length of the filter window (number of coefficients).
-        Must be a positive odd integer.
-    polyorder : int, default=2
-        Polynomial order to fit. Must be less than `window_length`.
-    deriv : int, default=0
-        Order of derivative to compute. Default 0 means smoothing.
-    axis : int, default=1
-        Axis to apply filter:
-        - 1 → across spectral bands (smoothing spectra of each sample row)
-        - 0 → across samples (smoothing each band across rows)
 
     Returns
     -------
     HyperTable
-        New HyperTable object with smoothed (or derivative) data.
+        New HyperTable with row-normalized spectra.
+    """
+    norms = np.linalg.norm(hyper_table.data.values, axis=1, keepdims=True)
+    norms[norms == 0] = 1  # avoid divide by zero
+    normalized = hyper_table.data.values / norms
+
+    normalized_df = pd.DataFrame(normalized, columns=hyper_table.data.columns)
+    return _rebuild_hypertable(hyper_table, normalized_df, {"scaling": "vector"})
+
+
+# ==============================
+# Spectral Smoothing / Filtering
+# ==============================
+def apply_savgol_filter(hyper_table: "HyperTable", window_length: int = 11,
+                        polyorder: int = 2, deriv: int = 0, axis: int = 1) -> "HyperTable":
+    """
+    Apply Savitzky–Golay filter to smooth spectra.
+
+    Parameters
+    ----------
+    hyper_table : HyperTable
+        Input dataset.
+    window_length : int, default=11
+        Size of the smoothing window (odd integer).
+    polyorder : int, default=2
+        Polynomial order for fitting.
+    deriv : int, default=0
+        Derivative order (0 = smoothing).
+    axis : int, default=1
+        Direction of filter:
+        - 1 → across bands (smooth spectra).
+        - 0 → across samples.
+
+    Returns
+    -------
+    HyperTable
+        Smoothed HyperTable.
     """
     if axis not in (0, 1):
         raise ValueError("axis must be 0 (samples) or 1 (bands).")
 
-    # Apply filter
     smoothed_data = savgol_filter(
         hyper_table.data.values,
         window_length=window_length,
@@ -133,279 +176,199 @@ def apply_savgol_filter(
         axis=axis
     )
 
-    # Wrap back into HyperTable
-    return HyperTable(
-        pd.DataFrame(smoothed_data, columns=hyper_table.data.columns),
-        wavelengths=hyper_table.wavelengths,
-        metadata=hyper_table.metadata.copy()
-    )
+    smoothed_df = pd.DataFrame(smoothed_data, columns=hyper_table.data.columns)
+    return _rebuild_hypertable(hyper_table, smoothed_df, {"filter": f"savgol(window={window_length}, poly={polyorder})"})
 
-def pca_denoise(
-    hyper_table: "HyperTable",
-    n_components: int
-) -> "HyperTable":
-    """
-    Apply PCA-based denoising to a HyperTable object.
 
-    Parameters
-    ----------
-    hyper_table : HyperTable
-        Input hyperspectral dataset.
-    n_components : int
-        Number of principal components to retain. Higher = less denoising, 
-        lower = more aggressive denoising.
-
-    Returns
-    -------
-    HyperTable
-        New HyperTable object with denoised data reconstructed from PCA.
-    """
-    if n_components <= 0 or n_components > hyper_table.bands:
-        raise ValueError("n_components must be between 1 and number of bands.")
-
-    # Fit PCA
-    pca = PCA(n_components=n_components)
-    transformed = pca.fit_transform(hyper_table.data.values)
-
-    # Reconstruct data using only top components
-    reconstructed = pca.inverse_transform(transformed)
-
-    return HyperTable(
-        pd.DataFrame(reconstructed, columns=hyper_table.data.columns),
-        wavelengths=hyper_table.wavelengths,
-        metadata={**hyper_table.metadata, "denoising": f"PCA (n={n_components})"}
-    )
-
-def band_average(
-    hyper_table: "HyperTable",
-    window_size: int = 3
-) -> "HyperTable":
+def band_average(hyper_table: "HyperTable", window_size: int = 3) -> "HyperTable":
     """
     Apply band averaging (spectral smoothing) to reduce noise.
 
     Parameters
     ----------
     hyper_table : HyperTable
-        Input hyperspectral dataset.
+        Input dataset.
     window_size : int, default=3
-        Number of adjacent bands to average. Must be >= 2.
+        Number of adjacent bands to average.
 
     Returns
     -------
     HyperTable
-        New HyperTable object with smoothed spectral bands.
+        Smoothed HyperTable with fewer bands.
     """
     if window_size < 2:
         raise ValueError("window_size must be >= 2")
 
     data = hyper_table.data.values
     n_samples, n_bands = data.shape
-
-    # Number of resulting bands after averaging
     n_new_bands = n_bands // window_size
 
-    # Average adjacent bands
     smoothed_data = np.zeros((n_samples, n_new_bands))
-    new_wavelengths = np.zeros(n_new_bands)
+    new_wavelengths = np.zeros(n_new_bands) if hyper_table.wavelengths is not None else None
 
     for i in range(n_new_bands):
-        start = i * window_size
-        end = start + window_size
+        start, end = i * window_size, (i + 1) * window_size
         smoothed_data[:, i] = data[:, start:end].mean(axis=1)
-
-        # Average the corresponding wavelengths too
         if hyper_table.wavelengths is not None:
             new_wavelengths[i] = hyper_table.wavelengths[start:end].mean()
 
-    # Create DataFrame with new band labels
-    smoothed_df = pd.DataFrame(
-        smoothed_data,
-        index=hyper_table.data.index,
-        columns=[f"band_{i}" for i in range(n_new_bands)]
-    )
-
-    return HyperTable(
-        smoothed_df,
-        wavelengths=new_wavelengths if hyper_table.wavelengths is not None else None,
-        metadata={**hyper_table.metadata, "smoothing": f"band_average(window={window_size})"}
-    )
+    smoothed_df = pd.DataFrame(smoothed_data, columns=[f"band_{i}" for i in range(n_new_bands)])
+    return _rebuild_hypertable(hyper_table, smoothed_df, {"smoothing": f"band_average(window={window_size})"})
 
 
+# ==============================
+# Denoising / Dimensionality Reduction
+# ==============================
+def pca_denoise(hyper_table: "HyperTable", n_components: int) -> "HyperTable":
+    """
+    Apply PCA-based denoising and reconstruction.
 
-def remove_noisy_bands(
-    hyper_table: "HyperTable",
-    wavelength_range: tuple = None,
-    variance_threshold: float = None
-) -> "HyperTable":
+    Parameters
+    ----------
+    hyper_table : HyperTable
+        Input dataset.
+    n_components : int
+        Number of principal components to retain.
+
+    Returns
+    -------
+    HyperTable
+        Reconstructed dataset with noise reduced.
+    """
+    if n_components <= 0 or n_components > hyper_table.bands:
+        raise ValueError("n_components must be between 1 and number of bands.")
+
+    pca = PCA(n_components=n_components)
+    transformed = pca.fit_transform(hyper_table.data.values)
+    reconstructed = pca.inverse_transform(transformed)
+
+    reconstructed_df = pd.DataFrame(reconstructed, columns=hyper_table.data.columns)
+    return _rebuild_hypertable(hyper_table, reconstructed_df, {"denoising": f"PCA (n={n_components})"})
+
+
+# ==============================
+# Band Selection
+# ==============================
+def remove_noisy_bands(hyper_table: "HyperTable", wavelength_range: tuple = None,
+                       variance_threshold: float = None) -> "HyperTable":
     """
     Remove noisy or irrelevant spectral bands.
 
     Parameters
     ----------
     hyper_table : HyperTable
-        Input hyperspectral dataset.
+        Input dataset.
     wavelength_range : tuple (min_wl, max_wl), optional
-        Keep only bands within this wavelength range.
-        Example: (450, 900) keeps visible + NIR.
+        Keep only bands in this wavelength range.
     variance_threshold : float, optional
-        Remove bands whose variance is below this threshold (flat/noisy).
+        Remove bands with variance below this value.
 
     Returns
     -------
     HyperTable
-        New HyperTable object with noisy bands removed.
+        Dataset with filtered bands.
     """
     data = hyper_table.data.copy()
     wavelengths = hyper_table.wavelengths
-
     keep_mask = np.ones(data.shape[1], dtype=bool)
 
-    # Filter by wavelength range
     if wavelength_range is not None and wavelengths is not None:
         min_wl, max_wl = wavelength_range
         keep_mask &= (wavelengths >= min_wl) & (wavelengths <= max_wl)
 
-    # Filter by variance threshold
     if variance_threshold is not None:
         band_variances = data.var(axis=0).values
         keep_mask &= band_variances > variance_threshold
 
-    # Apply mask
     filtered_data = data.iloc[:, keep_mask]
-
-    if wavelengths is not None:
-        filtered_wavelengths = wavelengths[keep_mask]
-    else:
-        filtered_wavelengths = None
-
-    return HyperTable(
-        filtered_data,
-        wavelengths=filtered_wavelengths,
-        metadata={**hyper_table.metadata, "filter": "remove_noisy_bands"}
-    )
+    return _rebuild_hypertable(hyper_table, filtered_data,
+                               {"filter": "remove_noisy_bands", "variance_threshold": variance_threshold})
 
 
-def select_wavelength_range(
-    hyper_table: "HyperTable",
-    ranges: list[tuple[float, float]]
-) -> "HyperTable":
+def select_wavelength_range(hyper_table: "HyperTable", ranges: list[tuple[float, float]]) -> "HyperTable":
     """
-    Select spectral bands within one or more wavelength ranges.
+    Select bands within given wavelength ranges.
 
     Parameters
     ----------
     hyper_table : HyperTable
-        Input hyperspectral dataset.
+        Input dataset.
     ranges : list of (min_wl, max_wl)
-        List of wavelength ranges to keep.
-        Example: [(400, 700), (750, 900)] keeps visible + NIR.
+        Wavelength ranges to keep.
 
     Returns
     -------
     HyperTable
-        New HyperTable object with selected wavelength ranges.
+        Dataset with only selected bands.
     """
     if hyper_table.wavelengths is None:
         raise ValueError("Wavelengths are not defined in this HyperTable.")
 
     keep_mask = np.zeros(hyper_table.bands, dtype=bool)
-
-    # Build a mask for all selected ranges
     for min_wl, max_wl in ranges:
         keep_mask |= (hyper_table.wavelengths >= min_wl) & (hyper_table.wavelengths <= max_wl)
 
-    # Apply mask
     filtered_data = hyper_table.data.iloc[:, keep_mask]
-    filtered_wavelengths = hyper_table.wavelengths[keep_mask]
+    return _rebuild_hypertable(hyper_table, filtered_data, {"filter": f"selected_ranges={ranges}"})
 
-    return HyperTable(
-        filtered_data,
-        wavelengths=filtered_wavelengths,
-        metadata={**hyper_table.metadata, "filter": f"selected_ranges={ranges}"}
-    )
 
+# ==============================
+# Outlier Detection
+# ==============================
 def mahalanobis_distance(hyper_table: "HyperTable") -> np.ndarray:
     """
-    Compute Mahalanobis distance of each sample (row) in a HyperTable.
+    Compute Mahalanobis distance for each sample.
 
     Parameters
     ----------
     hyper_table : HyperTable
-        Input hyperspectral dataset.
+        Input dataset.
 
     Returns
     -------
     np.ndarray
-        Array of Mahalanobis distances for each sample.
+        Array of distances per sample.
     """
     X = hyper_table.data.values
-
-    # Mean of each band
     mean_vec = np.mean(X, axis=0)
-
-    # Covariance matrix of bands
     cov_matrix = np.cov(X, rowvar=False)
-
-    # Inverse covariance (handle singular case safely)
     try:
         inv_cov_matrix = np.linalg.inv(cov_matrix)
     except np.linalg.LinAlgError:
         inv_cov_matrix = np.linalg.pinv(cov_matrix)
+    return np.array([distance.mahalanobis(x, mean_vec, inv_cov_matrix) for x in X])
 
-    # Compute distances
-    m_dist = [distance.mahalanobis(x, mean_vec, inv_cov_matrix) for x in X]
 
-    return np.array(m_dist)
-
-def isolation_forest_filter(
-    hyper_table: "HyperTable",
-    contamination: float = 0.05,
-    random_state: int = 42,
-    return_mask: bool = False
-) -> "HyperTable":
+def isolation_forest_filter(hyper_table: "HyperTable", contamination: float = 0.05,
+                            random_state: int = 42, return_mask: bool = False) -> "HyperTable":
     """
-    Apply Isolation Forest anomaly detection to remove noisy/outlier samples 
-    from a HyperTable object.
+    Apply Isolation Forest to detect and filter outlier samples.
 
     Parameters
     ----------
     hyper_table : HyperTable
-        Input HyperTable object.
+        Input dataset.
     contamination : float, default=0.05
-        Proportion of expected outliers in the data (between 0 and 0.5).
+        Proportion of expected outliers.
     random_state : int, default=42
-        Random seed for reproducibility.
+        Random seed.
     return_mask : bool, default=False
-        If True, returns (HyperTable, mask) where mask is a boolean array
-        indicating which samples were kept.
+        If True, return (HyperTable, mask).
 
     Returns
     -------
     HyperTable
-        New HyperTable object with outliers removed.
+        Dataset with outliers removed.
     mask : np.ndarray, optional
-        Boolean mask of samples (only if return_mask=True).
+        Boolean mask of kept samples.
     """
     X = hyper_table.data.values
-
-    # Fit Isolation Forest
-    iso = IsolationForest(
-        contamination=contamination,
-        random_state=random_state
-    )
-    preds = iso.fit_predict(X)  # -1 = outlier, 1 = inlier
-
-    # Mask to select inliers
+    iso = IsolationForest(contamination=contamination, random_state=random_state)
+    preds = iso.fit_predict(X)
     mask = preds == 1
+
     filtered_data = hyper_table.data[mask]
+    new_ht = _rebuild_hypertable(hyper_table, filtered_data,
+                                 {"filter": "isolation_forest", "contamination": contamination})
 
-    new_ht = HyperTable(
-        filtered_data,
-        wavelengths=hyper_table.wavelengths,
-        metadata=hyper_table.metadata.copy()
-    )
-
-    if return_mask:
-        return new_ht, mask
-    else:
-        return new_ht
+    return (new_ht, mask) if return_mask else new_ht
