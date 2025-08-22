@@ -1,26 +1,38 @@
-import matplotlib.pyplot as plt
 import numpy as np
+import matplotlib.pyplot as plt
 from sklearn.decomposition import PCA
+from sklearn.decomposition import FastICA
+from sklearn.manifold import TSNE
+from sklearn.decomposition import NMF
 
-def plot_pca(hyper_table: "HyperTable",
-             n_components: int = 3,
-             figsize: tuple = (7, 5)) -> None:
+try:
+    import umap.umap_ as umap
+    HAS_UMAP = True
+except ImportError:
+    HAS_UMAP = False
+
+def pca_transform(hyper_table: "HyperTable",
+                  n_components: int = 3,
+                  visualize: bool = True,
+                  figsize: tuple = (7, 5)) -> np.ndarray:
     """
-    Visualize PCA results for hyperspectral data.
+    Apply PCA to reduce hyperspectral data dimensionality.
 
     Parameters
     ----------
     hyper_table : HyperTable
         Hyperspectral data container.
     n_components : int, default=3
-        Number of components to visualize (must be >= 2).
+        Number of principal components to retain.
+    visualize : bool, default=True
+        If True, plots explained variance ratio and scatter plot of first PCs.
     figsize : tuple, default=(7, 5)
-        Figure size for plots.
+        Size of plots.
 
     Returns
     -------
-    None
-        Displays explained variance and scatter plots.
+    np.ndarray
+        PCA-transformed data of shape (samples, n_components).
     """
     X = hyper_table.data.values.astype(float)
 
@@ -28,40 +40,245 @@ def plot_pca(hyper_table: "HyperTable",
     pca = PCA(n_components=n_components)
     X_pca = pca.fit_transform(X)
 
-    # 1. Explained variance plot
-    plt.figure(figsize=figsize)
-    plt.plot(np.cumsum(pca.explained_variance_ratio_[:n_components]) * 100,
-             marker="o", color="darkblue")
-    plt.xlabel("Number of Components")
-    plt.ylabel("Cumulative Explained Variance (%)")
-    plt.title("PCA Explained Variance")
-    plt.grid(alpha=0.3)
-    plt.tight_layout()
-    plt.show()
-
-    # 2. Scatter plot (PC1 vs PC2)
-    if n_components >= 2:
+    # Visualization
+    if visualize:
+        # 1. Explained variance plot
         plt.figure(figsize=figsize)
-        plt.scatter(X_pca[:, 0], X_pca[:, 1],
-                    c="darkgreen", alpha=0.7, edgecolor="k")
-        plt.xlabel("PC1")
-        plt.ylabel("PC2")
-        plt.title("PCA Scatter Plot (PC1 vs PC2)")
+        plt.plot(np.cumsum(pca.explained_variance_ratio_[:n_components]) * 100,
+                 marker="o", color="darkblue")
+        plt.xlabel("Number of Components")
+        plt.ylabel("Cumulative Explained Variance (%)")
+        plt.title("PCA Explained Variance")
         plt.grid(alpha=0.3)
         plt.tight_layout()
         plt.show()
 
-    # 3. Optional 3D scatter (PC1 vs PC2 vs PC3)
-    if n_components >= 3:
-        from mpl_toolkits.mplot3d import Axes3D  # noqa: F401
-        fig = plt.figure(figsize=(8, 6))
-        ax = fig.add_subplot(111, projection="3d")
-        ax.scatter(X_pca[:, 0], X_pca[:, 1], X_pca[:, 2],
-                   c="teal", alpha=0.7, edgecolor="k")
-        ax.set_xlabel("PC1")
-        ax.set_ylabel("PC2")
-        ax.set_zlabel("PC3")
-        ax.set_title("PCA 3D Scatter Plot")
+        # 2. Scatter plot (only if at least 2 PCs)
+        if n_components >= 2:
+            plt.figure(figsize=figsize)
+            plt.scatter(X_pca[:, 0], X_pca[:, 1],
+                        c="darkgreen", alpha=0.7, edgecolor="k")
+            plt.xlabel("PC1")
+            plt.ylabel("PC2")
+            plt.title("PCA Scatter Plot (PC1 vs PC2)")
+            plt.grid(alpha=0.3)
+            plt.tight_layout()
+            plt.show()
+
+    return X_pca
+
+
+
+def ica_transform(hyper_table: "HyperTable",
+                  n_components: int = 3,
+                  visualize: bool = True,
+                  figsize: tuple = (7, 5)) -> np.ndarray:
+    """
+    Apply Independent Component Analysis (ICA) to hyperspectral data.
+
+    Parameters
+    ----------
+    hyper_table : HyperTable
+        Hyperspectral data container.
+    n_components : int, default=3
+        Number of independent components to extract.
+    visualize : bool, default=True
+        If True, shows scatter plots of ICA components.
+    figsize : tuple, default=(7, 5)
+        Size of the plots.
+
+    Returns
+    -------
+    np.ndarray
+        ICA-transformed data of shape (samples, n_components).
+    """
+    X = hyper_table.data.values.astype(float)
+
+    # Fit ICA
+    ica = FastICA(n_components=n_components, random_state=42)
+    X_ica = ica.fit_transform(X)
+
+    # Visualization
+    if visualize:
+        # 2D scatter plot (IC1 vs IC2)
+        if n_components >= 2:
+            plt.figure(figsize=figsize)
+            plt.scatter(X_ica[:, 0], X_ica[:, 1],
+                        c="purple", alpha=0.7, edgecolor="k")
+            plt.xlabel("IC1")
+            plt.ylabel("IC2")
+            plt.title("ICA Scatter Plot (IC1 vs IC2)")
+            plt.grid(alpha=0.3)
+            plt.tight_layout()
+            plt.show()
+
+        # 3D scatter plot (IC1 vs IC2 vs IC3)
+        if n_components >= 3:
+            from mpl_toolkits.mplot3d import Axes3D  # noqa: F401
+            fig = plt.figure(figsize=(8, 6))
+            ax = fig.add_subplot(111, projection="3d")
+            ax.scatter(X_ica[:, 0], X_ica[:, 1], X_ica[:, 2],
+                       c="darkorange", alpha=0.7, edgecolor="k")
+            ax.set_xlabel("IC1")
+            ax.set_ylabel("IC2")
+            ax.set_zlabel("IC3")
+            ax.set_title("ICA 3D Scatter Plot")
+            plt.tight_layout()
+            plt.show()
+
+    return X_ica
+
+def visualize_embedding(hyper_table: "HyperTable",
+                        method: str = "tsne",
+                        n_components: int = 2,
+                        perplexity: float = 30,
+                        figsize: tuple = (7, 5),
+                        random_state: int = 42) -> np.ndarray:
+    """
+    Visualize hyperspectral data using t-SNE or UMAP.
+
+    Parameters
+    ----------
+    hyper_table : HyperTable
+        Hyperspectral data container.
+    method : str, default="tsne"
+        Dimensionality reduction method: {"tsne", "umap"}.
+    n_components : int, default=2
+        Number of output dimensions (2 or 3).
+    perplexity : float, default=30
+        Perplexity for t-SNE (ignored for UMAP).
+    figsize : tuple, default=(7, 5)
+        Figure size.
+    random_state : int, default=42
+        Random seed for reproducibility.
+
+    Returns
+    -------
+    np.ndarray
+        Low-dimensional embedding of shape (samples, n_components).
+    """
+    X = hyper_table.data.values.astype(float)
+
+    # Choose method
+    if method.lower() == "tsne":
+        reducer = TSNE(
+            n_components=n_components,
+            perplexity=perplexity,
+            random_state=random_state,
+            init="random",
+            learning_rate="auto"
+        )
+    elif method.lower() == "umap":
+        if not HAS_UMAP:
+            raise ImportError("UMAP is not installed. Please install via `pip install umap-learn`.")
+        reducer = umap.UMAP(
+            n_components=n_components,
+            random_state=random_state
+        )
+    else:
+        raise ValueError("Method must be 'tsne' or 'umap'.")
+
+    embedding = reducer.fit_transform(X)
+
+    # Visualization
+    if n_components == 2:
+        plt.figure(figsize=figsize)
+        if hyper_table.labels is not None:
+            scatter = plt.scatter(embedding[:, 0], embedding[:, 1],
+                                  c=hyper_table.labels, cmap="tab10", alpha=0.7, edgecolor="k")
+            plt.colorbar(scatter, label="Labels")
+        else:
+            plt.scatter(embedding[:, 0], embedding[:, 1],
+                        c="steelblue", alpha=0.7, edgecolor="k")
+        plt.xlabel("Component 1")
+        plt.ylabel("Component 2")
+        plt.title(f"{method.upper()} (2D)")
+        plt.grid(alpha=0.3)
         plt.tight_layout()
         plt.show()
 
+    elif n_components == 3:
+        from mpl_toolkits.mplot3d import Axes3D  # noqa: F401
+        fig = plt.figure(figsize=(8, 6))
+        ax = fig.add_subplot(111, projection="3d")
+        if hyper_table.labels is not None:
+            scatter = ax.scatter(embedding[:, 0], embedding[:, 1], embedding[:, 2],
+                                 c=hyper_table.labels, cmap="tab10", alpha=0.7, edgecolor="k")
+            fig.colorbar(scatter, label="Labels")
+        else:
+            ax.scatter(embedding[:, 0], embedding[:, 1], embedding[:, 2],
+                       c="steelblue", alpha=0.7, edgecolor="k")
+        ax.set_xlabel("Component 1")
+        ax.set_ylabel("Component 2")
+        ax.set_zlabel("Component 3")
+        ax.set_title(f"{method.upper()} (3D)")
+        plt.tight_layout()
+        plt.show()
+
+    return embedding
+
+def nmf_decomposition(hyper_table: "HyperTable",
+                      n_components: int = 5,
+                      visualize: bool = True,
+                      figsize: tuple = (10, 5),
+                      random_state: int = 42) -> tuple:
+    """
+    Perform Non-negative Matrix Factorization (NMF) on hyperspectral data.
+
+    Parameters
+    ----------
+    hyper_table : HyperTable
+        Hyperspectral data container.
+    n_components : int, default=5
+        Number of components (endmembers) to extract.
+    visualize : bool, default=True
+        Whether to visualize endmember spectra and abundance maps.
+    figsize : tuple, default=(10, 5)
+        Figure size for plots.
+    random_state : int, default=42
+        Random seed for reproducibility.
+
+    Returns
+    -------
+    W : np.ndarray
+        Abundance matrix of shape (samples, n_components).
+    H : np.ndarray
+        Endmember spectra matrix of shape (n_components, bands).
+    """
+    X = hyper_table.data.values.astype(float)
+
+    # Fit NMF
+    model = NMF(n_components=n_components, init="nndsvda",
+                random_state=random_state, max_iter=500)
+    W = model.fit_transform(X)  # Abundances
+    H = model.components_       # Endmembers
+
+    if visualize:
+        bands = np.arange(hyper_table.bands) if hyper_table.wavelengths is None else hyper_table.wavelengths
+
+        # Plot endmember spectra
+        plt.figure(figsize=figsize)
+        for i in range(n_components):
+            plt.plot(bands, H[i, :], label=f"Endmember {i+1}")
+        plt.xlabel("Wavelength (nm)" if hyper_table.wavelengths is not None else "Band Index")
+        plt.ylabel("Reflectance")
+        plt.title("NMF Endmember Spectra")
+        plt.legend()
+        plt.grid(alpha=0.3)
+        plt.tight_layout()
+        plt.show()
+
+        # Plot abundance distributions
+        plt.figure(figsize=(8, 5))
+        for i in range(n_components):
+            plt.hist(W[:, i], bins=30, alpha=0.6, label=f"Endmember {i+1}")
+        plt.xlabel("Abundance Value")
+        plt.ylabel("Frequency")
+        plt.title("Abundance Histograms (per Endmember)")
+        plt.legend()
+        plt.grid(alpha=0.3)
+        plt.tight_layout()
+        plt.show()
+
+    return W, H
+            
