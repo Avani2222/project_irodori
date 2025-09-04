@@ -8,6 +8,10 @@ from scipy.interpolate import interp1d
 from scipy import sparse
 from scipy.sparse.linalg import spsolve
 from .core import HyperTable
+import matplotlib.pyplot as plt          
+from scipy.spatial import ConvexHull     
+from sklearn.feature_selection import f_classif  # For ANOVA F-test
+from typing import List, Tuple, Optional, Union     
 
 # ==============================
 # Helper to rebuild HyperTable
@@ -524,3 +528,228 @@ def mixup(ht: HyperTable, alpha: float = 0.4, n_samples: int = None) -> HyperTab
         wavelengths=ht.wavelengths,
         metadata={**ht.metadata, "augmented": "mixup", "alpha": alpha}
     )
+
+def spectral_derivative(ht: HyperTable, order: int = 1, window_length: int = 11, polyorder: int = 2) -> HyperTable:
+    """
+    Compute derivative spectra using Savitzky–Golay filter.
+
+    Parameters
+    ----------
+    ht : HyperTable
+        Hyperspectral dataset.
+    order : int, default=1
+        Derivative order (1 = first derivative, 2 = second derivative).
+    window_length : int
+        Smoothing window.
+    polyorder : int
+        Polynomial order.
+
+    Returns
+    -------
+    HyperTable
+        HyperTable with derivative spectra.
+    """
+    derivative_data = ht.data.copy()
+    for i in range(ht.samples):
+        spectrum = ht.get_pixel(i)
+        derivative_data.iloc[i, :] = savgol_filter(spectrum, window_length=window_length, polyorder=polyorder, deriv=order)
+    return HyperTable(
+        data=pd.concat([pd.Series(ht.labels, name="label"), derivative_data], axis=1),
+        wavelengths=ht.wavelengths,
+        metadata={**ht.metadata, "derivative": order}
+    )
+
+def add_noise(ht: HyperTable, noise_level: float = 0.01) -> HyperTable:
+    """
+    Add Gaussian noise to spectra.
+
+    Parameters
+    ----------
+    ht : HyperTable
+    noise_level : float
+        Standard deviation of noise relative to max spectrum.
+
+    Returns
+    -------
+    HyperTable
+    """
+    noisy_data = ht.data.copy()
+    for i in range(ht.samples):
+        spectrum = ht.get_pixel(i)
+        noise = np.random.normal(0, noise_level * spectrum.max(), spectrum.shape)
+        noisy_data.iloc[i, :] = spectrum + noise
+
+    return HyperTable(
+        data=pd.concat([pd.Series(ht.labels, name="label"), noisy_data], axis=1),
+        wavelengths=ht.wavelengths,
+        metadata={**ht.metadata, "noise_added": noise_level}
+    )
+
+def spectral_index(ht: HyperTable, band1: int, band2: int, index_name: str = None) -> HyperTable:
+    """
+    Compute normalized difference index between two bands.
+
+    Parameters
+    ----------
+    ht : HyperTable
+    band1 : int
+    band2 : int
+    index_name : str, optional
+
+    Returns
+    -------
+    HyperTable
+        HyperTable with one column representing the index.
+    """
+    X = ht.data.values
+    ndi = (X[:, band1] - X[:, band2]) / (X[:, band1] + X[:, band2] + 1e-12)
+    df = pd.DataFrame(ndi, columns=[index_name or f"NDI_{band1}_{band2}"])
+    df.insert(0, "label", ht.labels)
+    return HyperTable(data=df, wavelengths=None, metadata={**ht.metadata, "spectral_index": f"{band1}-{band2}"})
+
+def resample_spectra(ht: HyperTable, new_wavelengths: np.ndarray) -> HyperTable:
+    """
+    Interpolate spectra to new wavelength positions.
+
+    Parameters
+    ----------
+    ht : HyperTable
+    new_wavelengths : np.ndarray
+        New wavelength grid.
+
+    Returns
+    -------
+    HyperTable
+    """
+    if ht.wavelengths is None:
+        raise ValueError("Original wavelengths not defined.")
+
+    resampled_data = []
+    for i in range(ht.samples):
+        spectrum = ht.get_pixel(i)
+        f = interp1d(ht.wavelengths, spectrum, kind="linear", bounds_error=False, fill_value="extrapolate")
+        resampled_data.append(f(new_wavelengths))
+
+    df = pd.DataFrame(resampled_data, columns=[f"band_{i}" for i in range(len(new_wavelengths))])
+    df.insert(0, "label", ht.labels)
+    return HyperTable(data=df, wavelengths=new_wavelengths, metadata={**ht.metadata, "resampled": True})
+
+def estimate_snr(ht: HyperTable, band_range: tuple = None) -> np.ndarray:
+    """
+    Estimate SNR as mean / std in selected band range.
+
+    Parameters
+    ----------
+    ht : HyperTable
+    band_range : tuple, optional
+        (start_band, end_band) to compute SNR.
+
+    Returns
+    -------
+    np.ndarray
+        SNR per sample.
+    """
+    X = ht.data.values
+    if band_range:
+        X = X[:, band_range[0]:band_range[1]]
+    snr = X.mean(axis=1) / (X.std(axis=1) + 1e-12)
+    return snr
+
+def multiplicative_scatter_correction(ht: HyperTable) -> HyperTable:
+    """
+    Apply Multiplicative Scatter Correction (MSC) to reduce scatter effects.
+    """
+    data = ht.data.values.astype(float)
+    mean_spectrum = data.mean(axis=0)
+    
+    corrected = np.zeros_like(data)
+    
+    for i, spectrum in enumerate(data):
+        # Linear regression of spectrum vs mean_spectrum
+        fit = np.polyfit(mean_spectrum, spectrum, 1)
+        slope, intercept = fit
+        corrected[i] = (spectrum - intercept) / slope
+
+    corrected_df = pd.DataFrame(corrected, columns=ht.data.columns)
+    return _rebuild_hypertable(ht, corrected_df, {"preprocessing": "MSC"})
+
+def standard_normal_variate(ht: HyperTable) -> HyperTable:
+    """
+    Apply SNV (Standard Normal Variate) to each spectrum (row-wise).
+    """
+    data = ht.data.values.astype(float)
+    mean = data.mean(axis=1, keepdims=True)
+    std = data.std(axis=1, keepdims=True)
+    std[std == 0] = 1  # avoid divide by zero
+    snv_data = (data - mean) / std
+
+    snv_df = pd.DataFrame(snv_data, columns=ht.data.columns)
+    return _rebuild_hypertable(ht, snv_df, {"preprocessing": "SNV"})
+
+def savgol_first_derivative(ht: HyperTable, window_length: int = 11, polyorder: int = 2) -> HyperTable:
+    """
+    Compute first derivative using Savitzky–Golay filter.
+    """
+    deriv_data = savgol_filter(ht.data.values, window_length, polyorder, deriv=1, axis=1)
+    deriv_df = pd.DataFrame(deriv_data, columns=ht.data.columns)
+    return _rebuild_hypertable(ht, deriv_df, {"preprocessing": "first_derivative"})
+
+def savgol_second_derivative(ht: HyperTable, window_length: int = 11, polyorder: int = 2) -> HyperTable:
+    """
+    Compute second derivative using Savitzky–Golay filter.
+    """
+    deriv_data = savgol_filter(ht.data.values, window_length, polyorder, deriv=2, axis=1)
+    deriv_df = pd.DataFrame(deriv_data, columns=ht.data.columns)
+    return _rebuild_hypertable(ht, deriv_df, {"preprocessing": "second_derivative"})
+
+def baseline_als(y, lam=1e5, p=0.01, niter=10):
+    """
+    Asymmetric least squares baseline correction.
+    """
+    L = len(y)
+    D = sparse.diags([1, -2, 1], [0, -1, -2], shape=(L, L-2))
+    D = lam * D.dot(D.T)
+    w = np.ones(L)
+    for _ in range(niter):
+        W = sparse.spdiags(w, 0, L, L)
+        Z = W + D
+        z = spsolve(Z, w*y)
+        w = p * (y > z) + (1-p) * (y < z)
+    return z
+
+def apply_baseline_correction(ht: HyperTable, lam=1e5, p=0.01, niter=10) -> HyperTable:
+    """
+    Apply ALS baseline correction to all spectra in a HyperTable.
+    """
+    corrected_data = ht.data.copy()
+    for i in range(ht.samples):
+        spectrum = ht.get_pixel(i)
+        baseline = baseline_als(spectrum, lam, p, niter)
+        corrected_data.iloc[i, :] = spectrum - baseline
+    return _rebuild_hypertable(ht, corrected_data, {"preprocessing": "baseline_als"})
+
+def resample_wavelengths(ht: HyperTable, new_wavelengths: np.ndarray) -> HyperTable:
+    """
+    Resample hyperspectral data to a new set of wavelengths using linear interpolation.
+    """
+    if ht.wavelengths is None:
+        raise ValueError("Original wavelengths not defined.")
+
+    resampled_data = np.zeros((ht.samples, len(new_wavelengths)))
+    for i in range(ht.samples):
+        f = interp1d(ht.wavelengths, ht.get_pixel(i), kind='linear', bounds_error=False, fill_value='extrapolate')
+        resampled_data[i, :] = f(new_wavelengths)
+
+    resampled_df = pd.DataFrame(resampled_data, columns=[f"wl_{int(wl)}" for wl in new_wavelengths])
+    return _rebuild_hypertable(ht, resampled_df, {"preprocessing": "resampled", "new_wavelengths": new_wavelengths.tolist()})
+
+def remove_outliers_zscore(ht: HyperTable, threshold: float = 3.0) -> HyperTable:
+    """
+    Remove samples with any band having a Z-score above a threshold.
+    """
+    data = ht.data.values
+    z_scores = (data - data.mean(axis=0)) / data.std(axis=0)
+    mask = ~(np.abs(z_scores) > threshold).any(axis=1)
+    filtered_df = ht.data[mask]
+    return _rebuild_hypertable(ht, filtered_df, {"preprocessing": "zscore_outlier_removed"})
+
