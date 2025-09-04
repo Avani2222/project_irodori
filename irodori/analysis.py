@@ -5,6 +5,7 @@ import seaborn as sns
 from scipy.spatial import ConvexHull
 from sklearn.feature_selection import f_classif
 from sklearn.decomposition import PCA
+from .hypertable import HyperTable
 
 def compute_ndvi(hyper_table: "HyperTable",
                  red_wavelength: float = 660,
@@ -793,5 +794,44 @@ def plot_pca(hyper_table: "HyperTable",
         plt.tight_layout()
         plt.show()
 
+import matplotlib.pyplot as plt
+from .hypertable import HyperTable
+
+def plot_pixel_spectrum(ht: HyperTable, index: int, show_baseline: bool = False) -> None:
+    """
+    Plot the spectral signature of a single pixel/sample.
+
+    Parameters
+    ----------
+    ht : HyperTable
+        Hyperspectral dataset.
+    index : int
+        Row index of the sample to plot.
+    show_baseline : bool, default=False
+        If True, also plot the mean spectrum for reference.
+    """
+    spectrum = ht.get_pixel(index)
+    
+    if ht.wavelengths is not None:
+        x_axis = ht.wavelengths
+        xlabel = "Wavelength (nm)"
+    else:
+        x_axis = range(ht.bands)
+        xlabel = "Band Index"
+    
+    plt.figure(figsize=(8, 4))
+    plt.plot(x_axis, spectrum, label=f"Pixel {index}", color="blue")
+
+    if show_baseline:
+        mean_spec = ht.data.mean(axis=0).values
+        plt.plot(x_axis, mean_spec, label="Mean Spectrum", color="red", linestyle="--")
+    
+    plt.xlabel(xlabel)
+    plt.ylabel("Intensity")
+    plt.title(f"Spectral Signature (Pixel {index}, Label={ht.labels[index]})")
+    plt.legend()
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+    plt.show()
 
 
