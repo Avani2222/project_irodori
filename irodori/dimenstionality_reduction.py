@@ -4,6 +4,13 @@ from sklearn.decomposition import PCA
 from sklearn.decomposition import FastICA
 from sklearn.manifold import TSNE
 from sklearn.decomposition import NMF
+from sklearn.feature_selection import mutual_info_classif, mutual_info_regression
+from .core import Hypertable
+from typing import Union, Optional, Literal
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
+from sklearn.decomposition import KernelPCA
+from sklearn.decomposition import FactorAnalysis
+from sklearn.manifold import Isomap
 
 try:
     import umap.umap_ as umap
@@ -281,4 +288,227 @@ def nmf_decomposition(hyper_table: "HyperTable",
         plt.show()
 
     return W, H
-            
+
+def compute_mutual_info(
+    hyper_table: "HyperTable",
+    y: np.ndarray,
+    task: Literal["classification", "regression"] = "classification",
+    n_neighbors: int = 3,
+    plot: bool = True
+) -> np.ndarray:
+    """
+    Compute mutual information between hyperspectral bands and target variable.
+
+    Parameters
+    ----------
+    hyper_table : HyperTable
+        Hyperspectral data container with wavelengths and spectra (shape: n_samples x n_bands).
+    y : np.ndarray
+        Target labels or continuous values (shape: n_samples,).
+    task : {"classification", "regression"}, default="classification"
+        Whether the task is supervised classification or regression.
+    n_neighbors : int, default=3
+        Number of neighbors for MI estimation (used in sklearn).
+    plot : bool, default=True
+        If True, plots the MI score vs wavelength.
+
+    Returns
+    -------
+    np.ndarray
+        Mutual information scores for each band.
+    """
+    if hyper_table.spectra is None or hyper_table.wavelengths is None:
+        raise ValueError("HyperTable must contain both spectra and wavelengths.")
+
+    X = hyper_table.spectra  # shape (n_samples, n_bands)
+
+    if task == "classification":
+        mi = mutual_info_classif(X, y, discrete_features=False, n_neighbors=n_neighbors, random_state=42)
+    elif task == "regression":
+        mi = mutual_info_regression(X, y, discrete_features=False, n_neighbors=n_neighbors, random_state=42)
+    else:
+        raise ValueError("Task must be 'classification' or 'regression'.")
+
+    if plot:
+        plt.figure(figsize=(10, 5))
+        plt.plot(hyper_table.wavelengths, mi, marker="o", linewidth=1.5)
+        plt.xlabel("Wavelength (nm)")
+        plt.ylabel("Mutual Information")
+        plt.title(f"Mutual Information ({task.capitalize()})")
+        plt.grid(True, linestyle="--", alpha=0.6)
+        plt.show()
+
+    return mi
+
+def lda_transform(hyper_table: "HyperTable",
+                  n_components: int = 2,
+                  visualize: bool = True,
+                  figsize: tuple = (7, 5)) -> np.ndarray:
+    """
+    Apply Linear Discriminant Analysis (LDA) for dimensionality reduction.
+
+    Parameters
+    ----------
+    hyper_table : HyperTable
+        Hyperspectral data container with labels.
+    n_components : int, default=2
+        Number of discriminant components.
+    visualize : bool, default=True
+        If True, shows scatter plot of LDA components.
+    figsize : tuple, default=(7, 5)
+        Figure size.
+
+    Returns
+    -------
+    np.ndarray
+        LDA-transformed data of shape (samples, n_components).
+    """
+    if hyper_table.labels is None:
+        raise ValueError("LDA requires class labels in HyperTable.")
+
+    X = hyper_table.data.values.astype(float)
+    y = hyper_table.labels
+
+    lda = LinearDiscriminantAnalysis(n_components=n_components)
+    X_lda = lda.fit_transform(X, y)
+
+    if visualize and n_components == 2:
+        plt.figure(figsize=figsize)
+        scatter = plt.scatter(X_lda[:, 0], X_lda[:, 1],
+                              c=y, cmap="tab10", alpha=0.7, edgecolor="k")
+        plt.colorbar(scatter, label="Class")
+        plt.xlabel("LD1")
+        plt.ylabel("LD2")
+        plt.title("LDA Projection (2D)")
+        plt.grid(alpha=0.3)
+        plt.show()
+
+    return X_lda
+
+from sklearn.decomposition import KernelPCA
+
+def kernel_pca_transform(hyper_table: "HyperTable",
+                         n_components: int = 3,
+                         kernel: str = "rbf",
+                         gamma: Optional[float] = None,
+                         visualize: bool = True,
+                         figsize: tuple = (7, 5)) -> np.ndarray:
+    """
+    Apply Kernel PCA to hyperspectral data.
+
+    Parameters
+    ----------
+    hyper_table : HyperTable
+        Hyperspectral data container.
+    n_components : int, default=3
+        Number of components.
+    kernel : str, default="rbf"
+        Kernel type ("linear", "poly", "rbf", "sigmoid", etc.).
+    gamma : float, optional
+        Kernel coefficient for RBF/poly/sigmoid.
+    visualize : bool, default=True
+        Show scatter plot if n_components >= 2.
+    figsize : tuple, default=(7, 5)
+        Plot size.
+
+    Returns
+    -------
+    np.ndarray
+        Kernel PCA-transformed data.
+    """
+    X = hyper_table.data.values.astype(float)
+    kpca = KernelPCA(n_components=n_components, kernel=kernel, gamma=gamma)
+    X_kpca = kpca.fit_transform(X)
+
+    if visualize and n_components >= 2:
+        plt.figure(figsize=figsize)
+        plt.scatter(X_kpca[:, 0], X_kpca[:, 1],
+                    c="darkred", alpha=0.7, edgecolor="k")
+        plt.xlabel("KPCA1")
+        plt.ylabel("KPCA2")
+        plt.title(f"Kernel PCA ({kernel} kernel)")
+        plt.grid(alpha=0.3)
+        plt.show()
+
+    return X_kpca
+
+def factor_analysis_transform(hyper_table: "HyperTable",
+                              n_components: int = 3,
+                              visualize: bool = True,
+                              figsize: tuple = (7, 5)) -> np.ndarray:
+    """
+    Apply Factor Analysis (FA) to hyperspectral data.
+
+    Parameters
+    ----------
+    hyper_table : HyperTable
+        Hyperspectral data container.
+    n_components : int, default=3
+        Number of latent factors.
+    visualize : bool, default=True
+        Show scatter if n_components >= 2.
+    figsize : tuple, default=(7, 5)
+        Plot size.
+
+    Returns
+    -------
+    np.ndarray
+        FA-transformed data.
+    """
+    X = hyper_table.data.values.astype(float)
+    fa = FactorAnalysis(n_components=n_components, random_state=42)
+    X_fa = fa.fit_transform(X)
+
+    if visualize and n_components >= 2:
+        plt.figure(figsize=figsize)
+        plt.scatter(X_fa[:, 0], X_fa[:, 1],
+                    c="teal", alpha=0.7, edgecolor="k")
+        plt.xlabel("Factor 1")
+        plt.ylabel("Factor 2")
+        plt.title("Factor Analysis Projection")
+        plt.grid(alpha=0.3)
+        plt.show()
+
+    return X_fa
+
+def isomap_transform(hyper_table: "HyperTable",
+                     n_components: int = 2,
+                     n_neighbors: int = 5,
+                     visualize: bool = True,
+                     figsize: tuple = (7, 5)) -> np.ndarray:
+    """
+    Apply Isomap for non-linear dimensionality reduction.
+
+    Parameters
+    ----------
+    hyper_table : HyperTable
+        Hyperspectral data container.
+    n_components : int, default=2
+        Number of embedding dimensions.
+    n_neighbors : int, default=5
+        Number of neighbors for Isomap graph.
+    visualize : bool, default=True
+        Show scatter plot if n_components == 2.
+    figsize : tuple, default=(7, 5)
+        Plot size.
+
+    Returns
+    -------
+    np.ndarray
+        Isomap embedding.
+    """
+    X = hyper_table.data.values.astype(float)
+    isomap = Isomap(n_neighbors=n_neighbors, n_components=n_components)
+    X_iso = isomap.fit_transform(X)
+
+    if visualize and n_components == 2:
+        plt.figure(figsize=figsize)
+        plt.scatter(X_iso[:, 0], X_iso[:, 1],
+                    c="navy", alpha=0.7, edgecolor="k")
+        plt.xlabel("Dim 1")
+        plt.ylabel("Dim 2")
+        plt.title("Isomap Projection")
+        plt.grid(alpha=0.3)
+        plt.show()
+
+    return X_iso                           
