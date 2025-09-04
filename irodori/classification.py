@@ -1,3 +1,6 @@
+"""Module for classification tasks including split_data, scale_data, apply_pca, train_classifier, evaluate_classifier, plot_feature_importance, 
+cross_validate_classifier, full_classification_pipeline, plot_roc, hyperparameter_search, plot_confusion_heatmap, plot_learning_curve, save_model, load_model
+"""
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
