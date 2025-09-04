@@ -7,7 +7,7 @@ from sklearn.ensemble import IsolationForest
 from scipy.interpolate import interp1d
 from scipy import sparse
 from scipy.sparse.linalg import spsolve
-
+from .core import HyperTable
 
 # ==============================
 # Helper to rebuild HyperTable
