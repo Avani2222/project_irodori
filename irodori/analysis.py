@@ -6,7 +6,11 @@ from scipy.spatial import ConvexHull
 from sklearn.feature_selection import f_classif
 from sklearn.decomposition import PCA
 from .core import HyperTable
-
+from sklearn.feature_selection import mutual_info_classif
+from scipy.stats import entropy
+from sklearn.cluster import KMeans
+from scipy.signal import find_peaks
+from scipy.signal import savgol_filter
 
 
 def first_derivative(hyper_table: "HyperTable",
@@ -701,5 +705,353 @@ def plot_band_image(ht: HyperTable, band_index: int, image_shape: tuple, cmap: s
     plt.title(f"Band Image ({band_label})")
     plt.axis("off")
     plt.colorbar(label="Intensity")
+    plt.tight_layout()
+    plt.show()
+
+def band_correlation(hyper_table: "HyperTable",
+                     method: str = "pearson",
+                     figsize: tuple = (10, 6)) -> pd.DataFrame:
+    """
+    Compute correlation between spectral bands.
+
+    Parameters
+    ----------
+    hyper_table : HyperTable
+        Hyperspectral data container.
+    method : str, default="pearson"
+        Correlation method: 'pearson', 'spearman', or 'kendall'.
+    figsize : tuple, default=(10, 6)
+        Figure size for heatmap visualization.
+
+    Returns
+    -------
+    pd.DataFrame
+        Correlation matrix between bands.
+    """
+    corr_matrix = hyper_table.data.corr(method=method)
+
+    plt.figure(figsize=figsize)
+    sns.heatmap(corr_matrix, cmap="coolwarm", center=0, cbar_kws={"label": f"{method} correlation"})
+    plt.title(f"Band-to-Band Correlation ({method.title()})")
+    plt.tight_layout()
+    plt.show()
+
+    return corr_matrix
+
+def mutual_info_band_selection(hyper_table: "HyperTable",
+                               top_k: int = 10,
+                               figsize: tuple = (10, 5)) -> pd.DataFrame:
+    """
+    Rank spectral bands using Mutual Information with class labels.
+
+    Parameters
+    ----------
+    hyper_table : HyperTable
+        Hyperspectral data container with labels.
+    top_k : int, default=10
+        Number of top-ranked bands to return.
+    figsize : tuple, default=(10, 5)
+        Plot size for visualization.
+
+    Returns
+    -------
+    pd.DataFrame
+        Top ranked bands with MI scores.
+    """
+    if hyper_table.labels is None:
+        raise ValueError("Labels are required for Mutual Information.")
+
+    X = hyper_table.data.values
+    y = hyper_table.labels
+
+    mi_scores = mutual_info_classif(X, y, discrete_features=False, random_state=42)
+
+    result = pd.DataFrame({
+        "Band_Index": np.arange(hyper_table.bands),
+        "Wavelength": (hyper_table.wavelengths if hyper_table.wavelengths is not None
+                       else np.arange(hyper_table.bands)),
+        "MI_Score": mi_scores
+    }).sort_values(by="MI_Score", ascending=False)
+
+    plt.figure(figsize=figsize)
+    plt.plot(result["Wavelength"], result["MI_Score"], color="darkorange", label="MI Score")
+    plt.scatter(result.head(top_k)["Wavelength"], result.head(top_k)["MI_Score"],
+                color="red", label=f"Top {top_k} Bands")
+    plt.xlabel("Wavelength (nm)")
+    plt.ylabel("Mutual Information Score")
+    plt.title("Mutual Information Ranking of Spectral Bands")
+    plt.legend()
+    plt.grid(alpha=0.3)
+    plt.show()
+
+    return result.head(top_k)
+
+ def spectral_entropy(hyper_table: "HyperTable",
+                     visualize: bool = True,
+                     figsize: tuple = (10, 4)) -> np.ndarray:
+    """
+    Compute spectral entropy for each band.
+
+    Parameters
+    ----------
+    hyper_table : HyperTable
+        Hyperspectral data container.
+    visualize : bool, default=True
+        Whether to visualize entropy across bands.
+    figsize : tuple, default=(10, 4)
+        Plot size.
+
+    Returns
+    -------
+    np.ndarray
+        Entropy values per band.
+    """
+    X = hyper_table.data.values
+    # Normalize each band into probabilities
+    band_probs = (X.T / (X.sum(axis=1) + 1e-12)).T
+    entropies = entropy(band_probs.T)
+
+    if visualize:
+        wl = hyper_table.wavelengths if hyper_table.wavelengths is not None else np.arange(hyper_table.bands)
+        plt.figure(figsize=figsize)
+        plt.plot(wl, entropies, color="purple")
+        plt.xlabel("Wavelength (nm)")
+        plt.ylabel("Entropy")
+        plt.title("Spectral Entropy Across Bands")
+        plt.grid(alpha=0.3)
+        plt.tight_layout()
+        plt.show()
+
+    return entropies
+
+def cluster_bands(hyper_table: "HyperTable",
+                  n_clusters: int = 5,
+                  figsize: tuple = (8, 5)) -> dict:
+    """
+    Cluster spectral bands using KMeans on band similarity.
+
+    Parameters
+    ----------
+    hyper_table : HyperTable
+        Hyperspectral data container.
+    n_clusters : int, default=5
+        Number of clusters.
+    figsize : tuple, default=(8, 5)
+        Plot size.
+
+    Returns
+    -------
+    dict
+        Mapping of cluster_id -> band indices.
+    """
+    X = hyper_table.data.values.T  # transpose: bands × samples
+    km = KMeans(n_clusters=n_clusters, random_state=42)
+    clusters = km.fit_predict(X)
+
+    cluster_map = {}
+    for i in range(n_clusters):
+        cluster_map[i] = np.where(clusters == i)[0]
+
+    plt.figure(figsize=figsize)
+    plt.scatter(np.arange(hyper_table.bands), [clusters[i] for i in range(hyper_table.bands)],
+                c=clusters, cmap="tab10")
+    plt.xlabel("Band Index")
+    plt.ylabel("Cluster ID")
+    plt.title("Clustering of Spectral Bands")
+    plt.grid(alpha=0.3)
+    plt.show()
+
+    return cluster_map
+
+def spectral_snr(hyper_table: "HyperTable",
+                 visualize: bool = True,
+                 figsize: tuple = (10, 4)) -> np.ndarray:
+    """
+    Compute signal-to-noise ratio (SNR) for each band.
+
+    Parameters
+    ----------
+    hyper_table : HyperTable
+        Hyperspectral data container.
+    visualize : bool, default=True
+        Show SNR plot across bands.
+    figsize : tuple, default=(10, 4)
+        Plot size.
+
+    Returns
+    -------
+    np.ndarray
+        SNR values for each band.
+    """
+    X = hyper_table.data.values
+    mean_signal = X.mean(axis=0)
+    std_noise = X.std(axis=0)
+    snr = mean_signal / (std_noise + 1e-12)
+
+    if visualize:
+        wl = hyper_table.wavelengths if hyper_table.wavelengths is not None else np.arange(hyper_table.bands)
+        plt.figure(figsize=figsize)
+        plt.plot(wl, snr, color="darkblue")
+        plt.xlabel("Wavelength (nm)")
+        plt.ylabel("SNR")
+        plt.title("Signal-to-Noise Ratio Across Bands")
+        plt.grid(alpha=0.3)
+        plt.tight_layout()
+        plt.show()
+
+    return snr
+
+def spectral_peaks(hyper_table: "HyperTable",
+                   prominence: float = 0.01,
+                   visualize: bool = True,
+                   sample_indices: list = None,
+                   figsize: tuple = (8, 4)) -> dict:
+    """
+    Detect spectral peaks in hyperspectral spectra.
+
+    Parameters
+    ----------
+    hyper_table : HyperTable
+    prominence : float, default=0.01
+        Minimum prominence of peaks.
+    visualize : bool, default=True
+        Plot spectra with peaks.
+    sample_indices : list of int, optional
+        Specific samples to plot.
+    figsize : tuple
+
+    Returns
+    -------
+    dict
+        sample_index -> peak band indices
+    """
+    peaks_dict = {}
+    if sample_indices is None:
+        sample_indices = [0]
+
+    wl = hyper_table.wavelengths if hyper_table.wavelengths is not None else np.arange(hyper_table.bands)
+
+    plt.figure(figsize=figsize)
+    for idx in sample_indices:
+        spectrum = hyper_table.get_pixel(idx)
+        peaks, _ = find_peaks(spectrum, prominence=prominence)
+        peaks_dict[idx] = peaks
+
+        if visualize:
+            plt.plot(wl, spectrum, label=f"Sample {idx}")
+            plt.scatter(wl[peaks], spectrum[peaks], color="red", marker="x", label=f"Peaks {idx}")
+
+    if visualize:
+        plt.xlabel("Wavelength (nm)")
+        plt.ylabel("Reflectance")
+        plt.title("Spectral Peaks Detection")
+        plt.legend()
+        plt.grid(alpha=0.3)
+        plt.tight_layout()
+        plt.show()
+
+    return peaks_dict
+
+def pca_outlier_detection(hyper_table: "HyperTable",
+                          n_components: int = 5,
+                          threshold: float = 2.0,
+                          visualize: bool = True,
+                          figsize: tuple = (8, 4)) -> np.ndarray:
+    """
+    Detect outliers based on PCA reconstruction error.
+
+    Parameters
+    ----------
+    hyper_table : HyperTable
+    n_components : int
+        Number of PCA components.
+    threshold : float
+        Z-score threshold for outlier detection.
+    visualize : bool, default=True
+    figsize : tuple
+
+    Returns
+    -------
+    np.ndarray
+        Boolean mask of outliers (True = outlier)
+    """
+    X = hyper_table.data.values
+    pca = PCA(n_components=n_components)
+    X_proj = pca.fit_transform(X)
+    X_recon = pca.inverse_transform(X_proj)
+
+    errors = np.linalg.norm(X - X_recon, axis=1)
+    zscores = (errors - errors.mean()) / errors.std()
+    outliers = np.abs(zscores) > threshold
+
+    if visualize:
+        plt.figure(figsize=figsize)
+        plt.plot(errors, "o-", label="Reconstruction Error")
+        plt.axhline(threshold*errors.std() + errors.mean(), color="red", linestyle="--", label="Threshold")
+        plt.xlabel("Sample Index")
+        plt.ylabel("Error")
+        plt.title("PCA-Based Outlier Detection")
+        plt.legend()
+        plt.grid(alpha=0.3)
+        plt.tight_layout()
+        plt.show()
+
+    return outliers
+
+def smooth_spectra(hyper_table: "HyperTable",
+                   window_length: int = 7,
+                   polyorder: int = 2,
+                   visualize: bool = True,
+                   sample_indices: list = None,
+                   figsize: tuple = (8, 4)) -> "HyperTable":
+    """
+    Apply Savitzky–Golay smoothing to spectra.
+
+    Returns new HyperTable with smoothed spectra.
+    """
+    data = hyper_table.data.values
+    smoothed_data = savgol_filter(data, window_length=window_length, polyorder=polyorder, axis=1)
+    smoothed_ht = HyperTable(pd.DataFrame(smoothed_data, index=hyper_table.data.index),
+                             wavelengths=hyper_table.wavelengths,
+                             metadata={**hyper_table.metadata, "processed": "smoothed"})
+
+    if visualize:
+        if sample_indices is None:
+            sample_indices = [0]
+        wl = hyper_table.wavelengths if hyper_table.wavelengths is not None else np.arange(hyper_table.bands)
+        plt.figure(figsize=figsize)
+        for idx in sample_indices:
+            plt.plot(wl, hyper_table.get_pixel(idx), label=f"Original {idx}", alpha=0.5)
+            plt.plot(wl, smoothed_ht.get_pixel(idx), label=f"Smoothed {idx}", alpha=0.8)
+        plt.xlabel("Wavelength (nm)")
+        plt.ylabel("Reflectance")
+        plt.title("Savitzky-Golay Smoothing")
+        plt.legend()
+        plt.grid(alpha=0.3)
+        plt.tight_layout()
+        plt.show()
+
+    return smoothed_ht
+
+def plot_band_histograms(hyper_table: "HyperTable",
+                         band_indices: list = None,
+                         bins: int = 30,
+                         figsize: tuple = (12, 6)) -> None:
+    """
+    Plot histogram for selected spectral bands.
+    """
+    if band_indices is None:
+        band_indices = list(range(min(5, hyper_table.bands)))
+
+    wl = hyper_table.wavelengths if hyper_table.wavelengths is not None else np.arange(hyper_table.bands)
+
+    plt.figure(figsize=figsize)
+    for b in band_indices:
+        plt.hist(hyper_table.get_band(b), bins=bins, alpha=0.6, label=f"Band {b} ({wl[b]:.1f} nm)")
+    plt.xlabel("Reflectance")
+    plt.ylabel("Frequency")
+    plt.title("Band-Wise Histograms")
+    plt.legend()
+    plt.grid(alpha=0.3)
     plt.tight_layout()
     plt.show()
