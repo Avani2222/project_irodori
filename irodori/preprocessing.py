@@ -4,6 +4,9 @@ from scipy.signal import savgol_filter
 from sklearn.decomposition import PCA
 from scipy.spatial import distance
 from sklearn.ensemble import IsolationForest
+from scipy.interpolate import interp1d
+from scipy import sparse
+from scipy.sparse.linalg import spsolve
 
 
 # ==============================
@@ -372,3 +375,152 @@ def isolation_forest_filter(hyper_table: "HyperTable", contamination: float = 0.
                                  {"filter": "isolation_forest", "contamination": contamination})
 
     return (new_ht, mask) if return_mask else new_ht
+
+def correct_baseline(ht: HyperTable, lam: float = 1e5, p: float = 0.01, niter: int = 10) -> HyperTable:
+    """
+    Apply baseline correction to all spectra in a HyperTable.
+
+    Parameters
+    ----------
+    ht : HyperTable
+        Hyperspectral dataset.
+    lam : float
+        Smoothness parameter.
+    p : float
+        Asymmetry parameter.
+    niter : int
+        Number of iterations.
+
+    Returns
+    -------
+    HyperTable
+        New HyperTable with baseline-corrected spectra.
+    """
+    corrected_data = ht.data.copy()
+    for i in range(ht.samples):
+        spectrum = ht.get_pixel(i)
+        baseline = baseline_als(spectrum, lam=lam, p=p, niter=niter)
+        corrected_data.iloc[i, :] = spectrum - baseline
+
+    # Construct a new HyperTable
+    return HyperTable(
+        data=pd.concat([pd.Series(ht.labels, name="label"), corrected_data], axis=1),
+        wavelengths=ht.wavelengths,
+        metadata={**ht.metadata, "baseline_corrected": True}
+    )
+
+def normalize_vector(ht: HyperTable) -> HyperTable:
+    """
+    Apply vector normalization (L2 norm = 1) to all spectra in a HyperTable.
+
+    Parameters
+    ----------
+    ht : HyperTable
+        Hyperspectral dataset.
+
+    Returns
+    -------
+    HyperTable
+        New HyperTable with vector-normalized spectra.
+    """
+    normalized_data = ht.data.copy()
+    for i in range(ht.samples):
+        spectrum = ht.get_pixel(i)
+        norm = np.linalg.norm(spectrum, ord=2)
+        if norm > 0:
+            normalized_data.iloc[i, :] = spectrum / norm
+        else:
+            normalized_data.iloc[i, :] = spectrum  # leave unchanged if zero vector
+
+    return HyperTable(
+        data=pd.concat([pd.Series(ht.labels, name="label"), normalized_data], axis=1),
+        wavelengths=ht.wavelengths,
+        metadata={**ht.metadata, "vector_normalized": True}
+    )
+
+def spectral_shift(ht: HyperTable, shift: float) -> HyperTable:
+    """
+    Apply spectral shift to all spectra in a HyperTable.
+
+    Parameters
+    ----------
+    ht : HyperTable
+        Hyperspectral dataset.
+    shift : float
+        Number of bands to shift (positive = right, negative = left).
+        Can be fractional (uses interpolation).
+
+    Returns
+    -------
+    HyperTable
+        New HyperTable with shifted spectra.
+    """
+    shifted_data = ht.data.copy()
+    bands = ht.bands
+    x = np.arange(bands)
+
+    for i in range(ht.samples):
+        spectrum = ht.get_pixel(i)
+        f = interp1d(x, spectrum, kind="linear", bounds_error=False, fill_value="extrapolate")
+        shifted_x = x - shift
+        shifted_data.iloc[i, :] = f(shifted_x)
+
+    return HyperTable(
+        data=pd.concat([pd.Series(ht.labels, name="label"), shifted_data], axis=1),
+        wavelengths=ht.wavelengths,  # wavelengths stay same, only spectra shifted
+        metadata={**ht.metadata, "spectral_shift": shift}
+    )
+
+def mixup(ht: HyperTable, alpha: float = 0.4, n_samples: int = None) -> HyperTable:
+    """
+    Apply Mixup data augmentation to a HyperTable.
+
+    Parameters
+    ----------
+    ht : HyperTable
+        Hyperspectral dataset.
+    alpha : float, default=0.4
+        Beta distribution parameter (controls interpolation strength).
+        alpha=0 -> no mixup, higher alpha -> more aggressive mixing.
+    n_samples : int, optional
+        Number of new samples to generate.
+        If None, will generate the same number as in ht.
+
+    Returns
+    -------
+    HyperTable
+        New HyperTable with mixed samples.
+    """
+    X = ht.data.values
+    y = ht.labels
+    n = ht.samples
+
+    if n_samples is None:
+        n_samples = n
+
+    mixed_X = []
+    mixed_y = []
+
+    for _ in range(n_samples):
+        i, j = np.random.choice(n, 2, replace=False)
+        lam = np.random.beta(alpha, alpha)
+
+        x_new = lam * X[i] + (1 - lam) * X[j]
+        # mix labels (supports numeric labels)
+        if np.issubdtype(y.dtype, np.number):
+            y_new = lam * y[i] + (1 - lam) * y[j]
+        else:
+            # For categorical labels: store tuple or string
+            y_new = f"mix({y[i]},{y[j]})"
+
+        mixed_X.append(x_new)
+        mixed_y.append(y_new)
+
+    mixed_df = pd.DataFrame(mixed_X, columns=ht.data.columns)
+    mixed_df.insert(0, "label", mixed_y)
+
+    return HyperTable(
+        data=mixed_df,
+        wavelengths=ht.wavelengths,
+        metadata={**ht.metadata, "augmented": "mixup", "alpha": alpha}
+    )
