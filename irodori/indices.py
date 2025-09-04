@@ -214,3 +214,169 @@ def compute_custom_index(hyper_table: "HyperTable",
         plt.show()
 
     return index_values
+
+def compute_evi(hyper_table: "HyperTable",
+                blue_wavelength: float = 470,
+                red_wavelength: float = 660,
+                nir_wavelength: float = 860,
+                G: float = 2.5,
+                C1: float = 6.0,
+                C2: float = 7.5,
+                L: float = 1.0,
+                image_shape: tuple = None,
+                cmap: str = "Greens") -> np.ndarray:
+    """
+    Enhanced Vegetation Index (EVI).
+
+    EVI = G * (NIR - RED) / (NIR + C1*RED - C2*BLUE + L)
+    """
+    if hyper_table.wavelengths is None:
+        raise ValueError("Wavelengths are not defined in the HyperTable.")
+
+    blue_idx = np.argmin(np.abs(hyper_table.wavelengths - blue_wavelength))
+    red_idx = np.argmin(np.abs(hyper_table.wavelengths - red_wavelength))
+    nir_idx = np.argmin(np.abs(hyper_table.wavelengths - nir_wavelength))
+
+    blue_band = hyper_table.get_band(blue_idx)
+    red_band = hyper_table.get_band(red_idx)
+    nir_band = hyper_table.get_band(nir_idx)
+
+    evi = G * (nir_band - red_band) / (nir_band + C1 * red_band - C2 * blue_band + L + 1e-10)
+
+    if image_shape is not None:
+        plt.imshow(evi.reshape(image_shape), cmap=cmap)
+        plt.colorbar(label="EVI")
+        plt.title("EVI Heatmap")
+        plt.axis("off")
+        plt.show()
+
+    return evi
+
+def compute_gndvi(hyper_table: "HyperTable",
+                  green_wavelength: float = 550,
+                  nir_wavelength: float = 860,
+                  image_shape: tuple = None,
+                  cmap: str = "YlGn") -> np.ndarray:
+    """
+    Green Normalized Difference Vegetation Index (GNDVI).
+
+    GNDVI = (NIR - GREEN) / (NIR + GREEN)
+    """
+    if hyper_table.wavelengths is None:
+        raise ValueError("Wavelengths are not defined in the HyperTable.")
+
+    green_idx = np.argmin(np.abs(hyper_table.wavelengths - green_wavelength))
+    nir_idx = np.argmin(np.abs(hyper_table.wavelengths - nir_wavelength))
+
+    green_band = hyper_table.get_band(green_idx)
+    nir_band = hyper_table.get_band(nir_idx)
+
+    gndvi = (nir_band - green_band) / (nir_band + green_band + 1e-10)
+
+    if image_shape is not None:
+        plt.imshow(gndvi.reshape(image_shape), cmap=cmap)
+        plt.colorbar(label="GNDVI")
+        plt.title("GNDVI Heatmap")
+        plt.axis("off")
+        plt.show()
+
+    return gndvi
+python
+
+def compute_arvi(hyper_table: "HyperTable",
+                 red_wavelength: float = 660,
+                 blue_wavelength: float = 470,
+                 nir_wavelength: float = 860,
+                 gamma: float = 1.0,
+                 image_shape: tuple = None,
+                 cmap: str = "YlGn") -> np.ndarray:
+    """
+    Atmospherically Resistant Vegetation Index (ARVI).
+
+    ARVI = (NIR - (RED - gamma*(BLUE - RED))) / (NIR + (RED - gamma*(BLUE - RED)))
+    """
+    if hyper_table.wavelengths is None:
+        raise ValueError("Wavelengths are not defined in the HyperTable.")
+
+    red_idx = np.argmin(np.abs(hyper_table.wavelengths - red_wavelength))
+    blue_idx = np.argmin(np.abs(hyper_table.wavelengths - blue_wavelength))
+    nir_idx = np.argmin(np.abs(hyper_table.wavelengths - nir_wavelength))
+
+    red_band = hyper_table.get_band(red_idx)
+    blue_band = hyper_table.get_band(blue_idx)
+    nir_band = hyper_table.get_band(nir_idx)
+
+    rb_corr = red_band - gamma * (blue_band - red_band)
+    arvi = (nir_band - rb_corr) / (nir_band + rb_corr + 1e-10)
+
+    if image_shape is not None:
+        plt.imshow(arvi.reshape(image_shape), cmap=cmap)
+        plt.colorbar(label="ARVI")
+        plt.title("ARVI Heatmap")
+        plt.axis("off")
+        plt.show()
+
+    return arvi
+
+def compute_mndwi(hyper_table: "HyperTable",
+                  green_wavelength: float = 560,
+                  swir_wavelength: float = 1650,
+                  image_shape: tuple = None,
+                  cmap: str = "Blues") -> np.ndarray:
+    """
+    Modified Normalized Difference Water Index (MNDWI).
+
+    MNDWI = (GREEN - SWIR) / (GREEN + SWIR)
+    """
+    if hyper_table.wavelengths is None:
+        raise ValueError("Wavelengths are not defined in the HyperTable.")
+
+    green_idx = np.argmin(np.abs(hyper_table.wavelengths - green_wavelength))
+    swir_idx = np.argmin(np.abs(hyper_table.wavelengths - swir_wavelength))
+
+    green_band = hyper_table.get_band(green_idx)
+    swir_band = hyper_table.get_band(swir_idx)
+
+    mndwi = (green_band - swir_band) / (green_band + swir_band + 1e-10)
+
+    if image_shape is not None:
+        plt.imshow(mndwi.reshape(image_shape), cmap=cmap)
+        plt.colorbar(label="MNDWI")
+        plt.title("MNDWI Heatmap")
+        plt.axis("off")
+        plt.show()
+
+    return mndwi
+
+def compute_ndsi(hyper_table: "HyperTable",
+                 swir1_wavelength: float = 1640,
+                 swir2_wavelength: float = 2130,
+                 image_shape: tuple = None,
+                 cmap: str = "Oranges") -> np.ndarray:
+    """
+    Normalized Difference Soil Index (NDSI).
+
+    NDSI = (SWIR1 - SWIR2) / (SWIR1 + SWIR2)
+    """
+    if hyper_table.wavelengths is None:
+        raise ValueError("Wavelengths are not defined in the HyperTable.")
+
+    swir1_idx = np.argmin(np.abs(hyper_table.wavelengths - swir1_wavelength))
+    swir2_idx = np.argmin(np.abs(hyper_table.wavelengths - swir2_wavelength))
+
+    swir1_band = hyper_table.get_band(swir1_idx)
+    swir2_band = hyper_table.get_band(swir2_idx)
+
+    ndsi = (swir1_band - swir2_band) / (swir1_band + swir2_band + 1e-10)
+
+    if image_shape is not None:
+        plt.imshow(ndsi.reshape(image_shape), cmap=cmap)
+        plt.colorbar(label="NDSI")
+        plt.title("NDSI Heatmap")
+        plt.axis("off")
+        plt.show()
+
+    return ndsi
+
+
+
