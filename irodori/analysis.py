@@ -1,3 +1,11 @@
+"""
+  Module containing functions for analysis of irodori data including first_derivative, second_derivative, smooth_spectra, 
+  plot_spectral_signatures, plot_pca, plot_pixel_spectrum, plot_average_spectrum, plot_band_image, plot_band_histograms, 
+  anova_f_test, mutual_info_band_selection, band_correlation, spectral_entropy, cluster_bands, spectral_snr, 
+  spectral_peaks, spectral_angle_mapper, spectral_information_divergence, euclidean_distance, band_ratio, 
+  continuum_removal, pca_outlier_detection
+"""
+
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
