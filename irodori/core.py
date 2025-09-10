@@ -1,3 +1,7 @@
+"""
+This module defines the HyperTable class with the following functions and properties: __init__, 
+shape, samples, bands, get_pixel, set_wavelengths, get_band, summary, and __repr__.
+"""
 import pandas as pd
 import numpy as np
 from typing import Optional, Union, Dict, Any, List
