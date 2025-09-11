@@ -1,5 +1,7 @@
 """Module for classification tasks including split_data, scale_data, apply_pca, train_classifier, evaluate_classifier, plot_feature_importance, 
-cross_validate_classifier, full_classification_pipeline, plot_roc, hyperparameter_search, plot_confusion_heatmap, plot_learning_curve, save_model, load_model
+cross_validate_classifier, full_classification_pipeline, save_model, load_model, plot_precision_recall, classwise_metrics, top_k_accuracy, plot_calibration_curve, 
+plot_tsne, plot_umap, permutation_importance_plot, build_voting_classifier, build_stacking_classifier, one_vs_rest_classifier, one_vs_one_classifier, compare_classifiers, 
+optimize_threshold, apply_smote, batch_predict_and_report
 """
 import numpy as np
 import pandas as pd
