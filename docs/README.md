@@ -33,7 +33,7 @@ common/
     │       ├── irodori_analysis.md
     │       ├── irodori_indices.md
     │       ├── irodori_preprocessing.md
-    |       ├──irodori_dimensionality_reduction.md
+    |       ├── irodori_dimensionality_reduction.md
     │       ├── irodori_similarity.md
     │       └── irodori_classification.md
     │
@@ -44,7 +44,7 @@ common/
     │   ├── core.py
     │   ├── indices.py
     │   ├── io.py
-    |   ├──dimensionality_reduction.py 
+    |   ├── dimensionality_reduction.py 
     │   ├── preprocessing.py
     │   └── similarity.py
     │
