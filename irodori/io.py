@@ -1,3 +1,6 @@
+"""
+Module containing functions for converting a csv to hypertable(load_csv) and then also saving the hypertable as a csv(save_csv)
+"""
 import pandas as pd
 from typing import Optional, Union, Dict, Any, List
 import numpy as np
