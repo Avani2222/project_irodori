@@ -61,100 +61,165 @@ common/
     ├── .gitignore
     └── pyproject.toml
 ```
+
 ---
+
 # Hyperspectral Analysis Library
 
 ## core.py — Core Irodori Data Structure
-
-### Main Features
-- Standard container (`HyperTable` class) for storing Irodori data and metadata.
-- Validates shape, band count, and wavelength metadata.
-- Ensures cross-module compatibility.
-- Extract individual spectral bands by wavelength.
-- Developer-friendly object summary with `__repr__`.
-
-### Key Class & Methods
-
-**HyperTable**
-- `__init__(data, wavelengths=None, metadata=None)` — Initializes hyperspectral cube.
-- `shape` (property) — Returns cube dimensions `(rows, cols, bands)`.
-- `bands` (property) — Returns number of spectral bands.
-- `get_band(wavelength)` — Retrieves 2D image for closest band.
-- `__repr__()` — Summary of cube data and metadata.
+- **HyperTable**: Main container for hyperspectral/Irodori data with metadata validation and band access.
+  - `__init__(data, wavelengths=None, metadata=None)` — Initialize hyperspectral cube.
+  - `shape` — Returns cube dimensions `(rows, cols, bands)`.
+  - `bands` — Returns number of spectral bands.
+  - `get_band(wavelength)` — Retrieve 2D image for the closest wavelength.
+  - `__repr__()` — Summary of cube data and metadata.
 
 ---
 
 ## io.py — Data Input/Output
-
-### Main Features
-- Unified interface for loading/saving hyperspectral datasets.
-- Supports `.hsd`, `.dat`, `.npy`, and CSV formats.
-- Converts datasets into `HyperTable` objects.
-
-### Key Functions
-- `load_csv(filepath)` — Loads CSV as `HyperTable`.
-- `save_csv(cube, filename)` — Saves `HyperTable` as CSV.
-- `_load_npy()`, `_load_hsd()` — Internal parsers for specific formats.
+- Unified interface for loading/saving Irodori datasets, converting to `HyperTable`.
+  - `load_csv(filepath)` — Load CSV as HyperTable.
+  - `save_csv(cube, filename)` — Save HyperTable as CSV.
+  - `_load_npy()`, `_load_hsd()` — Internal parsers for `.npy` and `.hsd` formats.
 
 ---
 
 ## analysis.py — Spectral Analysis
-
-### Main Features
-- PCA and ICA for dimensionality reduction and component extraction.
-- Spectral heatmaps and loadings for visualization.
-- Band ratios, ANOVA F-tests, and peak detection.
-- Pixel-level and average spectral plotting.
-
-### Key Functions
-- `first_derivative()`, `second_derivative()`, `smooth_spectra()`
-- `plot_pixel_spectrum()`, `plot_average_spectrum()`, `plot_band_image()`
-- `pca_outlier_detection()`, `cluster_bands()`, `spectral_entropy()`
-- `spectral_angle_mapper()`, `spectral_information_divergence()`
-- `band_ratio()`, `continuum_removal()`, `anova_f_test()`
+- Tools for derivatives, PCA/ICA, band statistics, spectral plots, and similarity.
+  - `first_derivative()`, `second_derivative()`, `smooth_spectra()` — Compute derivatives and smooth spectra.
+  - `plot_pixel_spectrum()`, `plot_average_spectrum()`, `plot_band_image()`, `plot_band_histograms()`, `plot_spectral_signatures()`, `plot_pca()` — Visualize spectra and PCA/ICA results.
+  - `pca_outlier_detection()` — Detect spectral outliers via PCA.
+  - `cluster_bands()` — Cluster spectral bands.
+  - `spectral_entropy()` — Compute entropy per spectrum.
+  - `spectral_angle_mapper()`, `spectral_information_divergence()` — Measure spectral similarity.
+  - `band_ratio()` — Compute ratio between spectral bands.
+  - `continuum_removal()` — Normalize spectra continuum.
+  - `anova_f_test()` — Perform F-test for band significance.
 
 ---
 
 ## preprocessing.py — Preprocessing Tasks
-
-### Main Features
-- Denoising, normalization, baseline correction.
-- Savitzky–Golay smoothing and spectral derivatives.
-- Wavelength selection, mixup, and noise addition.
-- Outlier removal and scatter correction.
-
-### Key Functions
-- `minmax_scale()`, `standardize()`, `vector_normalize()`
-- `apply_savgol_filter()`, `baseline_als()`, `apply_baseline_correction()`
-- `spectral_shift()`, `resample_spectra()`, `remove_outliers_zscore()`
+- Functions for denoising, normalization, baseline correction, scatter correction, outlier removal.
+  - `minmax_scale()`, `standardize()`, `vector_normalize()` — Scale/normalize spectra.
+  - `apply_savgol_filter()` — Smooth spectra with Savitzky–Golay filter.
+  - `baseline_als()`, `apply_baseline_correction()` — Correct spectral baseline.
+  - `spectral_shift()` — Shift spectra along wavelength.
+  - `resample_spectra()` — Resample spectra to new wavelengths.
+  - `remove_outliers_zscore()` — Remove outlier pixels based on Z-score.
+  - `_rebuild_hypertable()` — Internal HyperTable reconstruction.
+  - `pca_denoise()`, `remove_noisy_bands()` — Denoise via PCA or remove noisy bands.
+  - `select_wavelength_range()` — Select subset of wavelengths.
+  - `mahalanobis_distance()`, `isolation_forest_filter()` — Outlier filtering.
+  - `normalize_vector()` — Vector normalization.
+  - `mixup()` — Data augmentation by mixing spectra.
+  - `spectral_derivative()`, `savgol_first_derivative()`, `savgol_second_derivative()` — Derivative calculations.
+  - `add_noise()` — Add synthetic noise to spectra.
+  - `spectral_index()` — Compute indices from spectra.
+  - `estimate_snr()` — Estimate signal-to-noise ratio.
+  - `multiplicative_scatter_correction()`, `standard_normal_variate()` — Scatter correction methods.
+  - `resample_wavelengths()` — Resample spectra to uniform wavelength grid.
 
 ---
 
 ## indices.py — Vegetation & Water Indices
-
-### Key Functions
-- `compute_ndvi()`, `compute_gndvi()`, `compute_savi()`, `compute_evi()`
-- `compute_arvi()`, `compute_mndwi()`, `compute_ndwi()`, `compute_ndsi()`
-- `compute_custom_index()`
+- Compute vegetation and water indices for Irodori data.
+  - `compute_ndvi()`, `compute_gndvi()`, `compute_savi()`, `compute_evi()` — Vegetation indices.
+  - `compute_arvi()`, `compute_mndwi()`, `compute_ndwi()`, `compute_ndsi()` — Water/soil indices.
+  - `compute_custom_index()` — Compute user-defined index.
 
 ---
 
 ## similarity.py — Spectral Similarity Metrics
-
-### Key Functions
-- `spectral_angle_mapper()`, `spectral_information_divergence()`
-- `euclidean_distance()`, `cosine_similarity()`, `spectral_correlation()`
-- `sam_heatmap()`, `similarity_dashboard()`
+- Compute and visualize spectral similarity.
+  - `spectral_angle_mapper()`, `spectral_information_divergence()` — SAM/SID similarity measures.
+  - `euclidean_distance()` — Euclidean distance between spectra.
+  - `cosine_similarity()` — Cosine similarity between spectra.
+  - `spectral_correlation()` — Pearson correlation between spectra.
+  - `band_ratio()` — Band ratio similarity metric.
+  - `sam_heatmap()`, `similarity_dashboard()` — Visualization tools.
 
 ---
 
 ## classification.py — Supervised & Unsupervised Classification
+- Functions for training, evaluating, and deploying classifiers.
+  - `supervised_classification()`, `unsupervised_classification()` — Train models or cluster data.
+  - `split_data()`, `scale_data()`, `apply_pca()` — Prepare data for modeling.
+  - `train_classifier()`, `cross_validate_classifier()`, `full_classification_pipeline()` — Train and validate models.
+  - `evaluate_classifier()`, `plot_feature_importance()`, `plot_precision_recall()`, `classwise_metrics()` — Evaluate and visualize performance.
+  - `top_k_accuracy()`, `plot_calibration_curve()` — Performance metrics.
+  - `plot_tsne()`, `plot_umap()` — Visualize high-dimensional embeddings.
+  - `permutation_importance_plot()` — Feature importance analysis.
+  - `build_voting_classifier()`, `build_stacking_classifier()` — Ensemble methods.
+  - `one_vs_rest_classifier()`, `one_vs_one_classifier()` — Multi-class strategies.
+  - `compare_classifiers()` — Compare multiple classifiers.
+  - `optimize_threshold()` — Adjust probability thresholds.
+  - `apply_smote()` — Oversample minority classes.
+  - `batch_predict_and_report()` — Predict and report for multiple datasets.
 
-### Key Functions
-- `supervised_classification()` — Random Forest, SVM, etc.
-- `unsupervised_classification()` — KMeans and other clustering methods.
-- Supports pixel-wise or full scene classification.
+---
+
+## dimensionality_reduction.py — Dimensionality Reduction & Clustering
+- Transform, embed, and cluster Irodori data.
+  - `pca_transform()`, `ica_transform()`, `lda_transform()`, `kernel_pca_transform()`, `factor_analysis_transform()` — Linear/non-linear transforms.
+  - `nmf_decomposition()`, `svd_transform()` — Matrix decomposition methods.
+  - `isomap_transform()`, `spectral_embedding_transform()`, `mds_transform()` — Manifold learning techniques.
+  - `visualize_embedding()` — Visualize low-dimensional embeddings.
+  - `kmeans_clustering()`, `gmm_clustering()` — Cluster transformed data.
+  - `compute_mutual_info()`, `variance_per_band()` — Feature importance metrics.
+  - `dr_anova_f_test()`, `dr_smooth_spectra()` — Dimensionality reduction specific F-test and smoothing.
 
 ---
 
 ## requirements.txt
+- `numpy>=1.21`, `pandas>=1.3`, `matplotlib>=3.4`, `seaborn>=0.11`, `scipy>=1.7`, `scikit-learn>=0.24`, `opencv-python>=4.5`, `pywavelets>=1.1`
+
+---
+## Usage
+
+### Basic Usage Example
+
+```python
+from irodori.core import HyperTable
+from irodori.classification import supervised_classification, unsupervised_classification
+import numpy as np
+
+# Fake hyperspectral cube (50x50 pixels, 100 bands)
+data = np.random.rand(50, 50, 100)
+wavelengths = np.linspace(400, 1000, 100)
+cube = HyperTable(data, wavelengths=wavelengths)
+
+# Labels for supervised classification
+labels = np.random.randint(0, 3, size=(50, 50))
+
+# Run supervised classification
+result_sup = supervised_classification(cube, labels, model='RandomForest')
+print("Supervised classification shape:", result_sup.shape)
+
+# Run unsupervised classification (KMeans)
+result_unsup = unsupervised_classification(cube, n_clusters=4)
+print("Unsupervised classification shape:", result_unsup.shape)
+```
+## Features
+
+- **End-to-End Workflow** — Load, preprocess, analyze, and classify Irodori data.  
+- **Multi-Camera Support** — Supports other devices similar to irodori device.  
+- **Standardized Data Structure** — `HyperTable` ensures compatibility across modules.  
+- **Preprocessing** — Denoising, calibration, wavelength correction, derivatives, continuum removal.  
+- **Spectral Analysis** — PCA, ICA, ANOVA, similarity metrics, band ratios.  
+- **Indices** — NDVI, GNDVI, SAVI, PRI, NDWI, MSI, Chlorophyll Index, ARI.  
+- **Classification** — Supervised (RF, SVM) and unsupervised (KMeans, GMM) pipelines.  
+- **Visualization** — Spectral plots, PCA scatter plots, heatmaps, RGB composites.  
+- **Modular Design** — Each function organized in separate modules for maintainability.  
+
+## Notes
+
+- **Dependencies** — Install all packages listed in `requirements.txt`.  
+- **Data Handling** — Functions expect `HyperTable` objects; raw arrays may need conversion.  
+- **Performance** — Large HSD datasets are memory-intensive; downsample if needed.  
+- **Extensibility** — Easy to add new preprocessing, analysis, or classification functions.  
+- **License** — Check repository license before commercial use.  
+- **Contributions** — Pull requests are welcome; follow contribution guidelines.
+  
+## License
+
+This library is provided for educational and research purposes. 
