@@ -1,3 +1,7 @@
+"""
+Module with functions for measuring similarity or difference between irodori data including spectral_angle_mapper, euclidean_distance, spectral_information_divergence, 
+band_ratio, spectral_correlation, cosine_similarity, sam_heatmap, similarity_dashboard
+"""
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
