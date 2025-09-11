@@ -1,3 +1,11 @@
+"""
+Module with functions for preprocessing tasks on irodori data including _rebuild_hypertable, minmax_scale, standardize, vector_normalize, 
+apply_savgol_filter, band_average, pca_denoise, remove_noisy_bands, select_wavelength_range, mahalanobis_distance, isolation_forest_filter, correct_baseline, 
+normalize_vector, spectral_shift, mixup, spectral_derivative, add_noise, spectral_index, resample_spectra, estimate_snr, multiplicative_scatter_correction, 
+standard_normal_variate, savgol_first_derivative, 
+savgol_second_derivative, baseline_als, apply_baseline_correction, resample_wavelengths, and remove_outliers_zscore.
+"""
+
 import pandas as pd
 import numpy as np
 from scipy.signal import savgol_filter
