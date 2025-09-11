@@ -11,6 +11,12 @@ from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.decomposition import KernelPCA
 from sklearn.decomposition import FactorAnalysis
 from sklearn.manifold import Isomap
+from sklearn.decomposition import TruncatedSVD
+from sklearn.manifold import SpectralEmbedding, MDS
+from sklearn.cluster import KMeans
+from sklearn.mixture import GaussianMixture
+from sklearn.feature_selection import f_classif
+from scipy.signal import savgol_filter
 
 try:
     import umap.umap_ as umap
@@ -511,4 +517,296 @@ def isomap_transform(hyper_table: "HyperTable",
         plt.grid(alpha=0.3)
         plt.show()
 
-    return X_iso                           
+    return X_iso      
+
+def svd_transform(hyper_table: "HyperTable",
+                  n_components: int = 3,
+                  visualize: bool = True,
+                  figsize: tuple = (7, 5)) -> np.ndarray:
+    """
+    Apply Truncated SVD (similar to PCA but works with sparse/high-dim data).
+
+    Parameters
+    ----------
+    hyper_table : HyperTable
+        Hyperspectral data container.
+    n_components : int, default=3
+        Number of components.
+    visualize : bool, default=True
+        Show scatter if n_components >= 2.
+    figsize : tuple, default=(7, 5)
+        Plot size.
+
+    Returns
+    -------
+    np.ndarray
+        SVD-transformed data.
+    """
+    X = hyper_table.data.values.astype(float)
+    svd = TruncatedSVD(n_components=n_components, random_state=42)
+    X_svd = svd.fit_transform(X)
+
+    if visualize and n_components >= 2:
+        plt.figure(figsize=figsize)
+        plt.scatter(X_svd[:, 0], X_svd[:, 1],
+                    c="darkblue", alpha=0.7, edgecolor="k")
+        plt.xlabel("SVD1")
+        plt.ylabel("SVD2")
+        plt.title("Truncated SVD Projection")
+        plt.grid(alpha=0.3)
+        plt.show()
+
+    return X_svd
+
+
+def spectral_embedding_transform(hyper_table: "HyperTable",
+                                 n_components: int = 2,
+                                 n_neighbors: int = 5,
+                                 visualize: bool = True,
+                                 figsize: tuple = (7, 5)) -> np.ndarray:
+    """
+    Apply Spectral Embedding (Laplacian Eigenmaps).
+
+    Parameters
+    ----------
+    hyper_table : HyperTable
+        Hyperspectral data container.
+    n_components : int, default=2
+        Number of embedding dimensions.
+    n_neighbors : int, default=5
+        Number of neighbors for affinity graph.
+    visualize : bool, default=True
+        Show scatter plot if n_components == 2.
+    figsize : tuple, default=(7, 5)
+        Plot size.
+
+    Returns
+    -------
+    np.ndarray
+        Spectral embedding.
+    """
+    X = hyper_table.data.values.astype(float)
+    embedder = SpectralEmbedding(n_components=n_components, n_neighbors=n_neighbors, random_state=42)
+    X_se = embedder.fit_transform(X)
+
+    if visualize and n_components == 2:
+        plt.figure(figsize=figsize)
+        plt.scatter(X_se[:, 0], X_se[:, 1],
+                    c="crimson", alpha=0.7, edgecolor="k")
+        plt.xlabel("Dim 1")
+        plt.ylabel("Dim 2")
+        plt.title("Spectral Embedding")
+        plt.grid(alpha=0.3)
+        plt.show()
+
+    return X_se
+
+
+def mds_transform(hyper_table: "HyperTable",
+                  n_components: int = 2,
+                  visualize: bool = True,
+                  figsize: tuple = (7, 5)) -> np.ndarray:
+    """
+    Apply Multidimensional Scaling (MDS) for distance-preserving embedding.
+
+    Parameters
+    ----------
+    hyper_table : HyperTable
+        Hyperspectral data container.
+    n_components : int, default=2
+        Embedding dimension.
+    visualize : bool, default=True
+        Show scatter plot if n_components == 2.
+    figsize : tuple, default=(7, 5)
+        Plot size.
+
+    Returns
+    -------
+    np.ndarray
+        MDS embedding.
+    """
+    X = hyper_table.data.values.astype(float)
+    mds = MDS(n_components=n_components, random_state=42, dissimilarity="euclidean")
+    X_mds = mds.fit_transform(X)
+
+    if visualize and n_components == 2:
+        plt.figure(figsize=figsize)
+        plt.scatter(X_mds[:, 0], X_mds[:, 1],
+                    c="olive", alpha=0.7, edgecolor="k")
+        plt.xlabel("MDS1")
+        plt.ylabel("MDS2")
+        plt.title("MDS Projection")
+        plt.grid(alpha=0.3)
+        plt.show()
+
+    return X_mds
+
+
+def kmeans_clustering(hyper_table: "HyperTable",
+                      n_clusters: int = 5,
+                      visualize: bool = True,
+                      figsize: tuple = (7, 5)) -> np.ndarray:
+    """
+    Cluster hyperspectral samples using KMeans.
+
+    Parameters
+    ----------
+    hyper_table : HyperTable
+        Hyperspectral data container.
+    n_clusters : int, default=5
+        Number of clusters.
+    visualize : bool, default=True
+        Show scatter of first 2 PCs colored by cluster.
+    figsize : tuple, default=(7, 5)
+        Plot size.
+
+    Returns
+    -------
+    np.ndarray
+        Cluster labels for each sample.
+    """
+    X = hyper_table.data.values.astype(float)
+    km = KMeans(n_clusters=n_clusters, random_state=42)
+    labels = km.fit_predict(X)
+
+    if visualize:
+        X_pca = PCA(n_components=2).fit_transform(X)
+        plt.figure(figsize=figsize)
+        plt.scatter(X_pca[:, 0], X_pca[:, 1], c=labels, cmap="tab20", alpha=0.7, edgecolor="k")
+        plt.xlabel("PC1")
+        plt.ylabel("PC2")
+        plt.title("KMeans Clustering (PCA Projection)")
+        plt.colorbar(label="Cluster")
+        plt.show()
+
+    return labels
+
+
+def gmm_clustering(hyper_table: "HyperTable",
+                   n_components: int = 5,
+                   visualize: bool = True,
+                   figsize: tuple = (7, 5)) -> np.ndarray:
+    """
+    Cluster hyperspectral samples using Gaussian Mixture Model (GMM).
+
+    Parameters
+    ----------
+    hyper_table : HyperTable
+        Hyperspectral data container.
+    n_components : int, default=5
+        Number of Gaussian components.
+    visualize : bool, default=True
+        Show scatter of first 2 PCs colored by cluster.
+    figsize : tuple, default=(7, 5)
+        Plot size.
+
+    Returns
+    -------
+    np.ndarray
+        Cluster labels for each sample.
+    """
+    X = hyper_table.data.values.astype(float)
+    gmm = GaussianMixture(n_components=n_components, random_state=42)
+    labels = gmm.fit_predict(X)
+
+    if visualize:
+        X_pca = PCA(n_components=2).fit_transform(X)
+        plt.figure(figsize=figsize)
+        plt.scatter(X_pca[:, 0], X_pca[:, 1], c=labels, cmap="tab20", alpha=0.7, edgecolor="k")
+        plt.xlabel("PC1")
+        plt.ylabel("PC2")
+        plt.title("GMM Clustering (PCA Projection)")
+        plt.colorbar(label="Cluster")
+        plt.show()
+
+    return labels
+
+
+def variance_per_band(hyper_table: "HyperTable") -> np.ndarray:
+    """
+    Compute and plot variance of each spectral band.
+
+    Parameters
+    ----------
+    hyper_table : HyperTable
+        Hyperspectral data container.
+
+    Returns
+    -------
+    np.ndarray
+        Variance values for each band.
+    """
+    X = hyper_table.data.values.astype(float)
+    variances = np.var(X, axis=0)
+
+    plt.figure(figsize=(10, 5))
+    plt.plot(hyper_table.wavelengths if hyper_table.wavelengths is not None else np.arange(len(variances)),
+             variances, marker="o", linewidth=1.5, color="darkblue")
+    plt.xlabel("Wavelength (nm)" if hyper_table.wavelengths is not None else "Band Index")
+    plt.ylabel("Variance")
+    plt.title("Variance per Spectral Band")
+    plt.grid(alpha=0.3)
+    plt.show()
+
+    return variances
+
+
+def anova_f_test(hyper_table: "HyperTable",
+                 y: np.ndarray,
+                 plot: bool = True) -> np.ndarray:
+    """
+    Perform ANOVA F-test for supervised band ranking.
+
+    Parameters
+    ----------
+    hyper_table : HyperTable
+        Hyperspectral data container.
+    y : np.ndarray
+        Class labels.
+    plot : bool, default=True
+        Plot F-scores vs wavelength.
+
+    Returns
+    -------
+    np.ndarray
+        F-scores per band.
+    """
+    X = hyper_table.data.values.astype(float)
+    f_scores, _ = f_classif(X, y)
+
+    if plot:
+        plt.figure(figsize=(10, 5))
+        plt.plot(hyper_table.wavelengths if hyper_table.wavelengths is not None else np.arange(len(f_scores)),
+                 f_scores, marker="o", linewidth=1.5, color="firebrick")
+        plt.xlabel("Wavelength (nm)" if hyper_table.wavelengths is not None else "Band Index")
+        plt.ylabel("F-score")
+        plt.title("ANOVA F-test Scores per Band")
+        plt.grid(alpha=0.3)
+        plt.show()
+
+    return f_scores
+
+
+def smooth_spectra(hyper_table: "HyperTable",
+                   window_length: int = 11,
+                   polyorder: int = 2) -> np.ndarray:
+    """
+    Apply Savitzky–Golay smoothing to hyperspectral spectra.
+
+    Parameters
+    ----------
+    hyper_table : HyperTable
+        Hyperspectral data container.
+    window_length : int, default=11
+        Length of the filter window (must be odd).
+    polyorder : int, default=2
+        Polynomial order.
+
+    Returns
+    -------
+    np.ndarray
+        Smoothed spectra.
+    """
+    X = hyper_table.data.values.astype(float)
+    smoothed = savgol_filter(X, window_length=window_length, polyorder=polyorder, axis=1)
+    return smoothed
