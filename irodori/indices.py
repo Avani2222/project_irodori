@@ -1,3 +1,8 @@
+"""
+Module containing functions for calculating indices including compute_ndvi, compute_ndwi, compute_savi, compute_custom_index, 
+compute_evi, compute_gndvi, compute_arvi, compute_mndwi, compute_ndsi
+"""
+
 import numpy as np
 import matplotlib.pyplot as plt
 from typing import Optional, Dict, Any
