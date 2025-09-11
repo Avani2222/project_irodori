@@ -1,7 +1,7 @@
-# irodori: Hyperspectral Data Analysis Library
+# Irodori: Irodori Data Analysis Library
 
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-blue)](https://www.python.org/)  
-[![GitHub Issues](https://img.shields.io/badge/library-irodori-green)](https://github.com/milk0707/ANSWER-Library/edit/master/common/project_irodori)
+[![GitHub Issues](https://img.shields.io/badge/library-irodori-green)](https://github.com/Avani2222/project_irodori)
 
 ---
 
