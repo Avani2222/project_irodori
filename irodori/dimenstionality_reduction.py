@@ -1,3 +1,8 @@
+"""
+Module for dimensionality reduction tasks on hyperspectral data including pca_transform, ica_transform, visualize_embedding, nmf_decomposition, compute_mutual_info, 
+lda_transform, kernel_pca_transform, factor_analysis_transform, isomap_transform, svd_transform, spectral_embedding_transform, mds_transform, kmeans_clustering, 
+gmm_clustering, variance_per_band, anova_f_test, smooth_spectra
+"""
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.decomposition import PCA
