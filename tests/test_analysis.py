@@ -33,22 +33,18 @@ from irodori.analysis import (
 # Fixtures
 # ---------------------------
 
+
 @pytest.fixture
 def mock_hyper_table():
-    np.random.seed(42)
-    samples, bands = 10, 50
-    labels = np.random.randint(0, 2, size=samples)
-    
-    # Generate 50 spectral bands
-    spectra = np.random.rand(samples, bands)
-    
-    # Build DataFrame: first column = labels, next 50 columns = bands
-    df = pd.DataFrame(
-        np.column_stack([labels, spectra]),
-        columns=["Label"] + [f"Band_{i}" for i in range(bands)]
-    )
-
-    ht = HyperTable(df, wavelengths=np.linspace(400, 1000, bands))
+    # Create a tiny dummy dataset
+    data = pd.DataFrame({
+        'label': ['A', 'B', 'C', 'D'],
+        400: [0.1, 0.2, 0.3, 0.4],
+        500: [0.5, 0.6, 0.7, 0.8],
+        600: [0.9, 1.0, 1.1, 1.2],
+    })
+    wavelengths = [400, 500, 600]  # match spectral columns
+    return HyperTable(data, wavelengths=wavelengths)
 @pytest.fixture
 def reference_spectrum(mock_hyper_table):
     return mock_hyper_table.data.values[0]
