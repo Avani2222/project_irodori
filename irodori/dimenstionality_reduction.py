@@ -10,7 +10,7 @@ from sklearn.decomposition import FastICA
 from sklearn.manifold import TSNE
 from sklearn.decomposition import NMF
 from sklearn.feature_selection import mutual_info_classif, mutual_info_regression
-from .core import Hypertable
+from .core import HyperTable
 from typing import Union, Optional, Literal
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.decomposition import KernelPCA
