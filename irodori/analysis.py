@@ -140,7 +140,7 @@ def plot_spectral_signatures(hyper_table: "HyperTable",
     for i, idx in enumerate(sample_indices):
         spectrum = hyper_table.get_pixel(idx)
         if labels and hyper_table.labels is not None:
-            lbl = f"Sample {idx} ({hyper_table.labels.iloc[idx]})"
+            lbl = f"Sample {idx} ({hyper_table.labels[idx]})"
         else:
             lbl = f"Sample {idx}"
         plt.plot(wavelengths, spectrum,
