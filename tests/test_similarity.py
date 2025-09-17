@@ -11,7 +11,7 @@ import irodori.similarity as sim
 # ------------------------------
 # Fixtures
 # ------------------------------
-@pytest.fixture
+
 @pytest.fixture
 def small_ht():
     np.random.seed(0)
