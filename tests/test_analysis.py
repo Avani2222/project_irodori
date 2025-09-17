@@ -38,12 +38,17 @@ def mock_hyper_table():
     np.random.seed(42)
     samples, bands = 10, 50
     labels = np.random.randint(0, 2, size=samples)
-    data = np.random.rand(samples, bands)
-    df = pd.DataFrame(data, columns=[f"Band_{i}" for i in range(bands)])
-    ht = HyperTable(df, wavelengths=np.linspace(400, 1000, bands))
-    ht.labels = labels
-    return ht
+    
+    # Generate 50 spectral bands
+    spectra = np.random.rand(samples, bands)
+    
+    # Build DataFrame: first column = labels, next 50 columns = bands
+    df = pd.DataFrame(
+        np.column_stack([labels, spectra]),
+        columns=["Label"] + [f"Band_{i}" for i in range(bands)]
+    )
 
+ht = HyperTable(df, wavelengths=np.linspace(400, 1000, bands))
 @pytest.fixture
 def reference_spectrum(mock_hyper_table):
     return mock_hyper_table.data.values[0]
