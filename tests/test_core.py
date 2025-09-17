@@ -1,8 +1,7 @@
 import pytest
 import pandas as pd
 import numpy as np
-
-from your_module_name import HyperTable  # replace with actual filename
+from irodori.core import HyperTable  # replace with actual filename
 
 # ------------------------------
 # Fixtures
