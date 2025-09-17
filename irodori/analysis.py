@@ -21,9 +21,11 @@ from scipy.signal import find_peaks
 from scipy.signal import savgol_filter
 
 
-def first_derivative(hyper_table: "HyperTable",
-                     show_plot: bool = False,
-                     sample_indices: list = None) -> "HyperTable":
+def first_derivative(
+    hyper_table: "HyperTable",
+    show_plot: bool = False,
+    sample_indices: list = None
+) -> "HyperTable":
     """
     Compute the first derivative of hyperspectral spectra.
 
@@ -47,22 +49,41 @@ def first_derivative(hyper_table: "HyperTable",
         derivative_data = np.gradient(data, hyper_table.wavelengths, axis=1)
     else:
         derivative_data = np.diff(data, axis=1)
-        derivative_data = np.hstack([derivative_data,
-                                     derivative_data[:, -1][:, None]])
+        derivative_data = np.hstack(
+            [derivative_data, derivative_data[:, -1][:, None]]
+        )
 
-    derivative_df = pd.DataFrame(derivative_data, index=hyper_table.data.index)
-    derivative_ht = HyperTable(derivative_df,
-                               wavelengths=hyper_table.wavelengths,
-                               metadata={**hyper_table.metadata, "processed": "first_derivative"})
+    derivative_df = pd.DataFrame(
+        derivative_data, index=hyper_table.data.index
+    )
+    derivative_ht = HyperTable(
+        derivative_df,
+        wavelengths=hyper_table.wavelengths,
+        metadata={**hyper_table.metadata, "processed": "first_derivative"},
+    )
 
     if show_plot:
         if sample_indices is None:
             sample_indices = [0]
-        wl = hyper_table.wavelengths if hyper_table.wavelengths is not None else np.arange(hyper_table.bands)
+        wl = (
+            hyper_table.wavelengths
+            if hyper_table.wavelengths is not None
+            else np.arange(hyper_table.bands)
+        )
         plt.figure(figsize=(8, 5))
         for idx in sample_indices:
-            plt.plot(wl, hyper_table.get_pixel(idx), label=f"Original {idx}", alpha=0.6)
-            plt.plot(wl, derivative_ht.get_pixel(idx), "--", label=f"Derivative {idx}")
+            plt.plot(
+                wl,
+                hyper_table.get_pixel(idx),
+                label=f"Original {idx}",
+                alpha=0.6,
+            )
+            plt.plot(
+                wl,
+                derivative_ht.get_pixel(idx),
+                "--",
+                label=f"Derivative {idx}",
+            )
         plt.xlabel("Wavelength (nm)")
         plt.ylabel("Reflectance / Derivative")
         plt.legend()
@@ -70,7 +91,6 @@ def first_derivative(hyper_table: "HyperTable",
         plt.show()
 
     return derivative_ht
-
 def plot_spectral_signatures(hyper_table: "HyperTable",
                              sample_indices: list = None,
                              labels: bool = True,
