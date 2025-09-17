@@ -164,9 +164,9 @@ def test_apply_baseline_correction(small_ht):
     assert isinstance(ht_corr, HyperTable)
 
 
-def test_resample_wavelengths(small_ht):
+def test_resample_spectra(small_ht):
     new_wls = np.linspace(400, 700, 6)
-    ht_res = pp.resample_wavelengths(small_ht, new_wls)
+    ht_res = pp.resample_spectra(small_ht, new_wls)
     assert ht_res.bands == len(new_wls)  # should now be 6
 
 
