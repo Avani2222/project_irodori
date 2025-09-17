@@ -5,7 +5,7 @@ from sklearn.datasets import make_classification
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.svm import SVC
 from irodori.core import HyperTable
-from your_module_name import (
+from irodori.classification import (
     split_data, scale_data, apply_pca, train_classifier, evaluate_classifier,
     plot_feature_importance, cross_validate_classifier, full_classification_pipeline,
     save_model, load_model, plot_precision_recall, classwise_metrics,
