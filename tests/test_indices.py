@@ -32,7 +32,6 @@ def sample_hyper_table():
 
     # Add labels as a column
     df.insert(0, "label", np.arange(5))
-    df["Label"] = labels
     ht = HyperTable(df, wavelengths=wavelengths)
     return ht
 
