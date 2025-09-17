@@ -14,13 +14,11 @@ import irodori.preprocessing as pp
 @pytest.fixture
 def small_ht():
     np.random.seed(42)
-    # 5 samples × 10 bands
     data = pd.DataFrame(np.random.rand(5, 10), columns=[f"band_{i}" for i in range(10)])
-    wavelengths = np.linspace(400, 700, 10)  # 10 bands
-    ht = HyperTable(data=data, wavelengths=wavelengths, metadata={"test": True})
-    # Optional: add labels if needed for functions that use them
-    ht.labels = np.array([0, 1, 0, 1, 0])
-    return ht
+    labels = np.array([0, 1, 0, 1, 0])
+    wavelengths = np.linspace(400, 700, 10)  # real spectral range
+    df = pd.concat([pd.Series(labels, name="label"), data], axis=1)
+    return HyperTable(data=df, wavelengths=wavelengths, metadata={"test": True})
 
 
 # ------------------------------
