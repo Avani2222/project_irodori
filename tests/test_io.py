@@ -1,10 +1,10 @@
-# test_io.py
+## test_io.py
 import pandas as pd
 import numpy as np
 import pytest
 
 from irodori.core import HyperTable
-from irodori.io import load_csv, save_csv  # adjust path if needed
+from irodori.io import load_csv, save_csv
 
 
 # -----------------------------
@@ -14,12 +14,12 @@ from irodori.io import load_csv, save_csv  # adjust path if needed
 def sample_hyper_table():
     wavelengths = np.array([500, 600, 700])
     data = pd.DataFrame({
-        "Label": ["A", "B", "C"],
         500: [0.1, 0.2, 0.3],
         600: [0.4, 0.5, 0.6],
         700: [0.7, 0.8, 0.9],
     })
-    return HyperTable(data, wavelengths=wavelengths, metadata={"source": "test"})
+    labels = ["A", "B", "C"]
+    return HyperTable(data, wavelengths=wavelengths, labels=labels, metadata={"source": "test"})
 
 
 @pytest.fixture
@@ -71,10 +71,9 @@ def test_save_csv_roundtrip(sample_hyper_table, tmp_path):
     filepath = tmp_path / "roundtrip.csv"
     save_csv(sample_hyper_table, filepath)
 
-    # reload
     reloaded = pd.read_csv(filepath)
     assert "Label" in reloaded.columns
-    assert reloaded.shape == (3, 4)
+    assert reloaded.shape == (3, 4)  # 3 samples × (label + 3 bands)
     assert reloaded["Label"].tolist() == ["A", "B", "C"]
 
 
@@ -88,8 +87,6 @@ def test_save_csv_without_header(sample_hyper_table, tmp_path):
 
 
 def test_save_csv_empty_data(tmp_path):
-    empty_ht = HyperTable(pd.DataFrame({"Label": [] + [ ]}), wavelengths=None)
-    empty_ht.data = None  # force empty data
-
+    empty_ht = HyperTable(pd.DataFrame(), wavelengths=None, labels=[])
     with pytest.raises(ValueError):
         save_csv(empty_ht, tmp_path / "bad.csv")
