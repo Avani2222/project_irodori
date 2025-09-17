@@ -358,28 +358,21 @@ def select_wavelength_range(hyper_table: "HyperTable", ranges: list[tuple[float,
 # ==============================
 # Outlier Detection
 # ==============================
-def mahalanobis_distance(hyper_table: "HyperTable") -> np.ndarray:
-    """
-    Compute Mahalanobis distance for each sample.
+def mahalanobis_distance(hyper_table):
+    spectra = getattr(hyper_table, "spectra", None)
+    if spectra is None:
+        spectra = getattr(hyper_table, "data").values
 
-    Parameters
-    ----------
-    hyper_table : HyperTable
-        Input dataset.
+    # compute covariance and invert using pinv (robust for singular)
+    cov = np.cov(spectra, rowvar=False)
+    # small regularization to stabilize numerical issues
+    reg = 1e-8 * np.eye(cov.shape[0])
+    inv_cov = np.linalg.pinv(cov + reg)
 
-    Returns
-    -------
-    np.ndarray
-        Array of distances per sample.
-    """
-    X = hyper_table.data.values
-    mean_vec = np.mean(X, axis=0)
-    cov_matrix = np.cov(X, rowvar=False)
-    try:
-        inv_cov_matrix = np.linalg.inv(cov_matrix)
-    except np.linalg.LinAlgError:
-        inv_cov_matrix = np.linalg.pinv(cov_matrix)
-    return np.array([distance.mahalanobis(x, mean_vec, inv_cov_matrix) for x in X])
+    mean = np.mean(spectra, axis=0)
+    diffs = spectra - mean
+    d2 = np.sum(diffs @ inv_cov * diffs, axis=1)  # squared distances
+    return np.sqrt(np.maximum(d2, 0.0))
 
 
 def isolation_forest_filter(hyper_table: "HyperTable", contamination: float = 0.05,
