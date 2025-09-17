@@ -1,5 +1,4 @@
 # test_analysis_module.py
-
 import pytest
 import numpy as np
 import pandas as pd
@@ -33,25 +32,26 @@ from irodori.analysis import (
 # Fixtures
 # ---------------------------
 
-
 @pytest.fixture
 def mock_hyper_table():
-    # Create a tiny dummy dataset
+    # Only spectral data in DataFrame
     data = pd.DataFrame({
-        'label': ['A', 'B', 'C', 'D'],
         400: [0.1, 0.2, 0.3, 0.4],
         500: [0.5, 0.6, 0.7, 0.8],
         600: [0.9, 1.0, 1.1, 1.2],
     })
-    wavelengths = [400, 500, 600]  # match spectral columns
-    return HyperTable(data, wavelengths=wavelengths)
+    wavelengths = [400, 500, 600]
+    labels = ['A', 'B', 'C', 'D']
+    return HyperTable(data, wavelengths=wavelengths, labels=labels)
+
 @pytest.fixture
 def reference_spectrum(mock_hyper_table):
-    return mock_hyper_table.data.values[0]
+    return mock_hyper_table.data.iloc[0].values
 
 @pytest.fixture
 def image_shape(mock_hyper_table):
-    return (2, 5)  # Must match total samples = 10
+    # Must match total samples = 4
+    return (2, 2)
 
 
 # ---------------------------
@@ -86,12 +86,12 @@ def test_plot_band_histograms(mock_hyper_table):
     plot_band_histograms(mock_hyper_table, band_indices=[0, 1, 2])
 
 def test_anova_f_test(mock_hyper_table):
-    result = anova_f_test(mock_hyper_table, top_k=5, visualize=False)
-    assert len(result) == 5
+    result = anova_f_test(mock_hyper_table, top_k=3, visualize=False)
+    assert len(result) == 3
 
 def test_mutual_info_band_selection(mock_hyper_table):
-    result = mutual_info_band_selection(mock_hyper_table, top_k=5)
-    assert len(result) == 5
+    result = mutual_info_band_selection(mock_hyper_table, top_k=3)
+    assert len(result) == 3
 
 def test_band_correlation(mock_hyper_table):
     corr = band_correlation(mock_hyper_table)
