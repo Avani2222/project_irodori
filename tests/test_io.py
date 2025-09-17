@@ -18,8 +18,14 @@ def sample_hyper_table():
         600: [0.4, 0.5, 0.6],
         700: [0.7, 0.8, 0.9],
     })
-    labels = ["A", "B", "C"]
-    return HyperTable(data, wavelengths=wavelengths, labels=labels, metadata={"source": "test"})
+
+    # Add labels as a column
+    data.insert(0, "label", ["A", "B", "C"])
+
+    ht = HyperTable(data, wavelengths=wavelengths, metadata={"source": "test"})
+    # Assign labels property if needed
+    ht.labels = data["label"].values
+    return ht
 
 
 @pytest.fixture
