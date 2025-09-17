@@ -35,8 +35,6 @@ def sample_hyper_table():
     df.insert(0, "label", np.arange(5))
 
     ht = HyperTable(df, wavelengths=wavelengths)
-    # Optionally set labels property
-    ht.labels = df["label"].values
     return ht
 
 
