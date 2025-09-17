@@ -24,27 +24,45 @@ from typing import List, Tuple, Optional, Union
 # ==============================
 # Helper to rebuild HyperTable
 # ==============================
-def _rebuild_hypertable(hyper_table, new_df: pd.DataFrame, metadata_updates: Optional[dict] = None):
+def _rebuild_hypertable(hyper_table, new_df: pd.DataFrame, metadata_updates: Optional[dict] = None, filtered_indices: Optional[np.ndarray] = None):
     """
-    Build a new HyperTable from a DataFrame `new_df` which is expected to contain
-    the same label column (if any) as the original. This function will try to
-    compute a new wavelengths array that matches new_df's band count.
+    Build a new HyperTable from a DataFrame `new_df`. Ensures that the labels match the filtered rows
+    and computes a new wavelengths array if needed.
+
+    Parameters
+    ----------
+    hyper_table : HyperTable
+        Original HyperTable.
+    new_df : pd.DataFrame
+        Filtered data (without label column or with label column).
+    metadata_updates : dict, optional
+        Updates to original metadata.
+    filtered_indices : np.ndarray, optional
+        Row indices from the original hyper_table that correspond to new_df rows.
+
+    Returns
+    -------
+    HyperTable
     """
-
-    # keep labels as first column if original had labels
-    has_labels = getattr(hyper_table, "labels", None) is not None
-
-    # If new_df already includes the label column at index 0, keep it; else inject the labels
     df = new_df.copy()
-    if has_labels:
-        # ensure label column is present
-        if df.shape[1] == hyper_table.bands:  # maybe label absent, so insert
-            df.insert(0, "Label", hyper_table.labels)
-        # if df already has label at col 0, fine.
 
-    # Compute new wavelengths if possible
+    # handle labels
+    if hasattr(hyper_table, "labels") and hyper_table.labels is not None:
+        if filtered_indices is not None:
+            filtered_labels = np.array(hyper_table.labels)[filtered_indices]
+        else:
+            filtered_labels = np.array(hyper_table.labels)
+
+        # insert labels if not already present
+        if "Label" not in df.columns and df.shape[1] == getattr(hyper_table, "bands", df.shape[1]):
+            df.insert(0, "Label", filtered_labels)
+        else:
+            # if label column exists, replace with filtered labels
+            df.iloc[:, 0] = filtered_labels
+
+    # compute new wavelengths
     old_wl = getattr(hyper_table, "wavelengths", None)
-    n_new_bands = df.shape[1] - (1 if has_labels else 0)
+    n_new_bands = df.shape[1] - (1 if "Label" in df.columns else 0)
 
     new_wavelengths = None
     if old_wl is not None:
@@ -53,29 +71,14 @@ def _rebuild_hypertable(hyper_table, new_df: pd.DataFrame, metadata_updates: Opt
         if n_new_bands == n_old:
             new_wavelengths = old_wl.copy()
         else:
-            # Try to parse numeric band column names like 'wl_400' or 'wl400' in new_df
-            band_cols = [c for c in df.columns if not (has_labels and c == df.columns[0])]
-            parsed = []
-            try:
-                for c in band_cols:
-                    # allow names like wl_400 or wl400 or '400'
-                    p = float(c.split("_")[-1])
-                    parsed.append(p)
-            except Exception:
-                parsed = None
+            # fallback: group old wavelengths evenly
+            edges = np.linspace(0, n_old, n_new_bands + 1, dtype=int)
+            new_wavelengths = np.array([
+                old_wl[edges[i]:edges[i+1]].mean() if edges[i+1] > edges[i] else old_wl[min(edges[i], n_old-1)]
+                for i in range(n_new_bands)
+            ])
 
-            if parsed and len(parsed) == n_new_bands:
-                new_wavelengths = np.array(parsed)
-            else:
-                # fallback: map old wavelengths to new bands by grouping / averaging
-                # create equal-width groups
-                edges = np.linspace(0, n_old, n_new_bands + 1, dtype=int)
-                new_wavelengths = np.array([
-                    old_wl[edges[i]:edges[i+1]].mean() if edges[i+1] > edges[i] else old_wl[min(edges[i], n_old-1)]
-                    for i in range(n_new_bands)
-                ])
-
-    # metadata
+    # merge metadata
     new_meta = dict(getattr(hyper_table, "metadata", {}) or {})
     if metadata_updates:
         new_meta.update(metadata_updates)
@@ -404,8 +407,7 @@ def isolation_forest_filter(hyper_table: "HyperTable", contamination: float = 0.
     mask = preds == 1
 
     filtered_data = hyper_table.data[mask]
-    new_ht = _rebuild_hypertable(hyper_table, filtered_data,
-                                 {"filter": "isolation_forest", "contamination": contamination})
+    new_ht = _rebuild_hypertable(hyper_table, filtered_data, filtered_indices=mask.nonzero()[0])
 
     return (new_ht, mask) if return_mask else new_ht
 
