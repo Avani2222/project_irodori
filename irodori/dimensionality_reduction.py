@@ -328,6 +328,18 @@ def compute_mutual_info(
     np.ndarray
         Mutual information scores for each band.
     """
+    spectra = getattr(hyper_table, "spectra", None)
+    if spectra is None:
+        # try a pandas DataFrame in .data
+        data_obj = getattr(hyper_table, "data", None)
+        if data_obj is None:
+            raise ValueError("HyperTable does not contain spectral data.")
+        spectra = data_obj.values if hasattr(data_obj, "values") else np.asarray(data_obj)
+
+    # get wavelengths (fallback to simple indices if missing)
+    wls = getattr(hyper_table, "wavelengths", None)
+    if wls is None:
+        wls = np.arange(spectra.shape[1])
     if hyper_table.spectra is None or hyper_table.wavelengths is None:
         raise ValueError("HyperTable must contain both spectra and wavelengths.")
 
