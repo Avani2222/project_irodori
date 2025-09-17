@@ -52,24 +52,44 @@ class HyperTable:
         if not isinstance(data, pd.DataFrame):
             raise ValueError("Input 'data' must be a pandas DataFrame.")
 
-        # Separate labels (first column)
-        self.labels = data.iloc[:, 0].values
-        self.data = data.iloc[:, 1:]
+        n_cols = data.shape[1]
 
-        # Wavelengths validation
+        # If wavelengths were provided, decide whether the DataFrame includes a label column.
         if wavelengths is not None:
             wl_array = np.asarray(wavelengths)
             if wl_array.ndim != 1:
                 raise ValueError("Wavelengths must be a 1D array.")
-            if len(wl_array) != self.data.shape[1]:
+
+            # Case A: wavelengths length equals number of columns -> DataFrame is purely spectral (no label)
+            if len(wl_array) == n_cols:
+                self.labels = None
+                # keep all columns as spectral bands
+                self.data = data.copy()
+
+            # Case B: wavelengths length equals cols-1 -> first column treated as label, rest are bands
+            elif len(wl_array) == (n_cols - 1):
+                self.labels = data.iloc[:, 0].values
+                self.data = data.iloc[:, 1:].copy()
+
+            else:
                 raise ValueError(
-                    f"Number of wavelengths ({len(wl_array)}) does not match number of bands ({self.data.shape[1]})."
+                    f"Number of wavelengths ({len(wl_array)}) does not match number of columns ({n_cols}) "
+                    f"or number of bands ({n_cols - 1})."
                 )
+
             self.wavelengths = wl_array
+
         else:
+            # No wavelengths provided — assume first column is labels and rest are bands (legacy)
+            self.labels = data.iloc[:, 0].values
+            self.data = data.iloc[:, 1:].copy()
             self.wavelengths = None
 
-        self.metadata = metadata if metadata is not None else {}
+        # Make legacy-friendly attributes available to other modules
+        self.spectra = self.data.values  # n_samples x n_bands numpy array
+        self.samples = int(self.data.shape[0])
+        self.bands = int(self.data.shape[1])
+        self.metadata = metadata or {}
 
     @property
     def shape(self) -> tuple:
