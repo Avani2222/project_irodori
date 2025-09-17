@@ -3,7 +3,7 @@
 import pytest
 import numpy as np
 import pandas as pd
-from hypertable import HyperTable
+from irodori.core import HyperTable
 from analysis_module import (
     first_derivative,
     second_derivative,
