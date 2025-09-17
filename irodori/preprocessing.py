@@ -24,35 +24,63 @@ from typing import List, Tuple, Optional, Union
 # ==============================
 # Helper to rebuild HyperTable
 # ==============================
-def _rebuild_hypertable(hyper_table: "HyperTable", new_data: pd.DataFrame, new_metadata: dict = None) -> "HyperTable":
+def _rebuild_hypertable(hyper_table, new_df: pd.DataFrame, metadata_updates: Optional[dict] = None):
     """
-    Rebuild a HyperTable by combining labels with transformed band data.
-
-    Parameters
-    ----------
-    hyper_table : HyperTable
-        Original HyperTable object.
-    new_data : pd.DataFrame
-        Transformed spectral data (bands only, without labels).
-    new_metadata : dict, optional
-        Extra metadata to merge into the new HyperTable.
-
-    Returns
-    -------
-    HyperTable
-        A new HyperTable with labels reattached, wavelengths preserved,
-        and metadata updated.
+    Build a new HyperTable from a DataFrame `new_df` which is expected to contain
+    the same label column (if any) as the original. This function will try to
+    compute a new wavelengths array that matches new_df's band count.
     """
-    df = pd.concat(
-        [pd.Series(hyper_table.labels, name="Label").reset_index(drop=True),
-         new_data.reset_index(drop=True)],
-        axis=1
-    )
-    return HyperTable(
-        df,
-        wavelengths=hyper_table.wavelengths,
-        metadata={**hyper_table.metadata, **(new_metadata or {})}
-    )
+
+    # keep labels as first column if original had labels
+    has_labels = getattr(hyper_table, "labels", None) is not None
+
+    # If new_df already includes the label column at index 0, keep it; else inject the labels
+    df = new_df.copy()
+    if has_labels:
+        # ensure label column is present
+        if df.shape[1] == hyper_table.bands:  # maybe label absent, so insert
+            df.insert(0, "Label", hyper_table.labels)
+        # if df already has label at col 0, fine.
+
+    # Compute new wavelengths if possible
+    old_wl = getattr(hyper_table, "wavelengths", None)
+    n_new_bands = df.shape[1] - (1 if has_labels else 0)
+
+    new_wavelengths = None
+    if old_wl is not None:
+        old_wl = np.asarray(old_wl)
+        n_old = len(old_wl)
+        if n_new_bands == n_old:
+            new_wavelengths = old_wl.copy()
+        else:
+            # Try to parse numeric band column names like 'wl_400' or 'wl400' in new_df
+            band_cols = [c for c in df.columns if not (has_labels and c == df.columns[0])]
+            parsed = []
+            try:
+                for c in band_cols:
+                    # allow names like wl_400 or wl400 or '400'
+                    p = float(c.split("_")[-1])
+                    parsed.append(p)
+            except Exception:
+                parsed = None
+
+            if parsed and len(parsed) == n_new_bands:
+                new_wavelengths = np.array(parsed)
+            else:
+                # fallback: map old wavelengths to new bands by grouping / averaging
+                # create equal-width groups
+                edges = np.linspace(0, n_old, n_new_bands + 1, dtype=int)
+                new_wavelengths = np.array([
+                    old_wl[edges[i]:edges[i+1]].mean() if edges[i+1] > edges[i] else old_wl[min(edges[i], n_old-1)]
+                    for i in range(n_new_bands)
+                ])
+
+    # metadata
+    new_meta = dict(getattr(hyper_table, "metadata", {}) or {})
+    if metadata_updates:
+        new_meta.update(metadata_updates)
+
+    return HyperTable(df, wavelengths=new_wavelengths, metadata=new_meta)
 
 
 # ==============================
