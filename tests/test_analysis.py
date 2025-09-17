@@ -118,7 +118,7 @@ def test_cluster_bands(mock_hyper_table):
 
 def test_spectral_snr(mock_hyper_table):
     snr = spectral_snr(mock_hyper_table, visualize=False)
-    assert snr.shape[0] == mock_hyper_table.bands
+    assert ent.shape[0] == mock_hyper_table.samples
 
 def test_spectral_peaks(mock_hyper_table):
     peaks = spectral_peaks(mock_hyper_table, sample_indices=[0, 1], visualize=False)
