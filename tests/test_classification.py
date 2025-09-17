@@ -80,8 +80,21 @@ def test_save_and_load_model(synthetic_data, tmp_path):
 
 def test_precision_recall(binary_data):
     X, y = binary_data
-    clf = RandomForestClassifier().fit(X, y)
-    plot_precision_recall(clf, X, y)
+    y = np.array(y)
+    
+    # Ensure binary classes are 0 and 1
+    classes = np.unique(y)
+    if len(classes) != 2:
+        raise ValueError("y must have exactly 2 classes for this test")
+    
+    clf = RandomForestClassifier(random_state=0).fit(X, y)
+    
+    # Binarize y
+    y_bin = label_binarize(y, classes=classes)
+    
+    # plot_precision_recall handles binary and multi-class internally
+    fig = plot_precision_recall(clf, X, y)
+    assert fig is not None
 
 
 def test_classwise_metrics(synthetic_data):
