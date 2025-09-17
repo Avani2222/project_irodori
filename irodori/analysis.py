@@ -618,7 +618,7 @@ def plot_pca(hyper_table: "HyperTable",
         plt.show()
 
 import matplotlib.pyplot as plt
-from .hypertable import HyperTable
+
 
 def plot_pixel_spectrum(ht: HyperTable, index: int, show_baseline: bool = False) -> None:
     """
