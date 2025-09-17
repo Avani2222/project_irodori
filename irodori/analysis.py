@@ -91,6 +91,7 @@ def first_derivative(
         plt.show()
 
     return derivative_ht
+  
 def plot_spectral_signatures(hyper_table: "HyperTable",
                              sample_indices: list = None,
                              labels: bool = True,
