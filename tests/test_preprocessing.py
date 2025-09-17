@@ -15,11 +15,10 @@ import irodori.preprocessing as pp
 def small_ht():
     np.random.seed(42)
     data = pd.DataFrame(np.random.rand(5, 10), columns=[f"band_{i}" for i in range(10)])
-    labels = np.array([0, 1, 0, 1, 0])
+    labels = pd.Series([0, 1, 0, 1, 0], name="label")
+    data_with_labels = pd.concat([labels, data], axis=1)
     wavelengths = np.linspace(400, 700, 10)
-    return HyperTable(data=pd.concat([pd.Series(labels, name="label"), data], axis=1),
-                      wavelengths=wavelengths,
-                      metadata={"test": True})
+    return HyperTable(data=data_with_labels, wavelengths=wavelengths, metadata={"test": True})
 
 
 # ------------------------------
