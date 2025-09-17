@@ -815,7 +815,7 @@ def mutual_info_band_selection(hyper_table: "HyperTable",
 
     return result.head(top_k)
 
- def spectral_entropy(hyper_table: "HyperTable",
+def spectral_entropy(hyper_table: "HyperTable",
                      visualize: bool = True,
                      figsize: tuple = (10, 4)) -> np.ndarray:
     """
