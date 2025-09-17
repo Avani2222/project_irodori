@@ -1,6 +1,7 @@
 import pytest
 import numpy as np
 import pandas as pd
+from sklearn.preprocessing import label_binarize
 from sklearn.datasets import make_classification
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.svm import SVC
