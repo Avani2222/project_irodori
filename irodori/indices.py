@@ -286,7 +286,7 @@ def compute_gndvi(hyper_table: "HyperTable",
         plt.show()
 
     return gndvi
-python
+
 
 def compute_arvi(hyper_table: "HyperTable",
                  red_wavelength: float = 660,
