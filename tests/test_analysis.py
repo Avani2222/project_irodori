@@ -44,12 +44,10 @@ def mock_hyper_table():
         700: [0.4, 0.5, 0.6, 0.7],
     })
     wavelengths = [400, 450, 500, 550, 600, 650, 700]
-    labels = np.array([0, 1, 0, 1])  # numeric labels for testing
 
     return HyperTable(
         data=data,
         wavelengths=wavelengths,
-        labels=labels,
         metadata={"test": True}
     )
 
