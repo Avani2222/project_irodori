@@ -11,9 +11,7 @@ class HyperTable:
     """
     A class to store and manage hyperspectral data in tabular (DataFrame) format.
 
-    This object represents
-    hyperspectral data where each row corresponds to a sample/pixel and each
-    column corresponds to a spectral band.
+    Each row corresponds to a sample/pixel and each column corresponds to a spectral band.
 
     Attributes
     ----------
@@ -25,6 +23,8 @@ class HyperTable:
         Array of wavelength values corresponding to each band (column).
     metadata : dict
         Dictionary to store additional information (e.g., file source, sensor type).
+    spectra : np.ndarray
+        Numpy array of the spectral data (rows = samples, columns = bands).
     """
 
     def __init__(self,
@@ -38,7 +38,7 @@ class HyperTable:
         ----------
         data : pd.DataFrame
             Hyperspectral data in tabular format (rows = samples, cols = bands).
-            Assumes the first column contains labels.
+            Assumes the first column contains labels if wavelengths are provided for rest of the columns.
         wavelengths : list or np.ndarray, optional
             Wavelengths corresponding to columns (excluding labels).
         metadata : dict, optional
@@ -54,19 +54,18 @@ class HyperTable:
 
         n_cols = data.shape[1]
 
-        # If wavelengths were provided, decide whether the DataFrame includes a label column.
+        # Determine label column based on wavelengths
         if wavelengths is not None:
             wl_array = np.asarray(wavelengths)
             if wl_array.ndim != 1:
                 raise ValueError("Wavelengths must be a 1D array.")
 
-            # Case A: wavelengths length equals number of columns -> DataFrame is purely spectral (no label)
+            # Case A: wavelengths length equals number of columns -> purely spectral
             if len(wl_array) == n_cols:
                 self.labels = None
-                # keep all columns as spectral bands
                 self.data = data.copy()
 
-            # Case B: wavelengths length equals cols-1 -> first column treated as label, rest are bands
+            # Case B: wavelengths length equals cols-1 -> first column is label
             elif len(wl_array) == (n_cols - 1):
                 self.labels = data.iloc[:, 0].values
                 self.data = data.iloc[:, 1:].copy()
@@ -80,15 +79,12 @@ class HyperTable:
             self.wavelengths = wl_array
 
         else:
-            # No wavelengths provided — assume first column is labels and rest are bands (legacy)
+            # No wavelengths provided — assume first column is labels
             self.labels = data.iloc[:, 0].values
             self.data = data.iloc[:, 1:].copy()
             self.wavelengths = None
 
-        # Make legacy-friendly attributes available to other modules
-        self.spectra = self.data.values  # n_samples x n_bands numpy array
-        self.samples = int(self.data.shape[0])
-        self.bands = int(self.data.shape[1])
+        self.spectra = self.data.values  # legacy-friendly n_samples x n_bands array
         self.metadata = metadata or {}
 
     @property
@@ -172,4 +168,6 @@ class HyperTable:
         else:
             wl_range_str = "wavelengths=UNDEFINED"
 
-        return f"HyperTable(samples={rows}, bands={cols}, labels=YES, {wl_range_str})"
+        label_str = "YES" if self.labels is not None else "NO"
+        return f"HyperTable(samples={rows}, bands={cols}, labels={label_str}, {wl_range_str})"
+
