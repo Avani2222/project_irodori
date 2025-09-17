@@ -48,7 +48,7 @@ def mock_hyper_table():
         columns=["Label"] + [f"Band_{i}" for i in range(bands)]
     )
 
-ht = HyperTable(df, wavelengths=np.linspace(400, 1000, bands))
+    ht = HyperTable(df, wavelengths=np.linspace(400, 1000, bands))
 @pytest.fixture
 def reference_spectrum(mock_hyper_table):
     return mock_hyper_table.data.values[0]
