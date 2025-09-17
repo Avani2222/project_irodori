@@ -5,7 +5,7 @@ import pandas as pd
 from typing import Optional, Union, Dict, Any, List
 import numpy as np
 
-from .hypertable import HyperTable   # assuming your class is in hypertable.py
+from .core import HyperTable   # assuming your class is in hypertable.py
 
 
 def load_csv(filepath: str,
