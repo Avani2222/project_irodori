@@ -21,7 +21,7 @@ def sample_hyper_table():
 
     # Add labels as a column
     data.insert(0, "label", ["A", "B", "C"])
-    df["Label"] = labels
+    data["Label"] = labels
     ht = HyperTable(data, wavelengths=wavelengths, metadata={"source": "test"})
     return ht
 
