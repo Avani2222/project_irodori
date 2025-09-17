@@ -34,17 +34,17 @@ from irodori.analysis import (
 
 @pytest.fixture
 def mock_hyper_table():
-    # Include labels as the first column in the DataFrame
     data = pd.DataFrame({
-        "label": ['A', 'B', 'C', 'D'],  # labels column
         400: [0.1, 0.2, 0.3, 0.4],
-        500: [0.5, 0.6, 0.7, 0.8],
-        600: [0.9, 1.0, 1.1, 1.2],
+        450: [0.15, 0.25, 0.35, 0.45],
+        500: [0.2, 0.3, 0.4, 0.5],
+        550: [0.25, 0.35, 0.45, 0.55],
+        600: [0.3, 0.4, 0.5, 0.6],
+        650: [0.35, 0.45, 0.55, 0.65],
+        700: [0.4, 0.5, 0.6, 0.7],
     })
-    wavelengths = [400, 500, 600]
-
-    ht = HyperTable(data, wavelengths=wavelengths)
-    return ht
+    wavelengths = [400, 450, 500, 550, 600, 650, 700]
+    return HyperTable(data=data, wavelengths=wavelengths, metadata={"test": True})
 
 @pytest.fixture
 def reference_spectrum(mock_hyper_table):
