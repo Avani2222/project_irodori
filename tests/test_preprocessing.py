@@ -14,11 +14,13 @@ import irodori.preprocessing as pp
 @pytest.fixture
 def small_ht():
     np.random.seed(42)
+    # 5 samples × 10 bands
     data = pd.DataFrame(np.random.rand(5, 10), columns=[f"band_{i}" for i in range(10)])
-    labels = pd.Series([0, 1, 0, 1, 0], name="label")
-    data_with_labels = pd.concat([labels, data], axis=1)
-    wavelengths = np.linspace(400, 700, 10)
-    return HyperTable(data=data_with_labels, wavelengths=wavelengths, metadata={"test": True})
+    wavelengths = np.linspace(400, 700, 10)  # 10 bands
+    ht = HyperTable(data=data, wavelengths=wavelengths, metadata={"test": True})
+    # Optional: add labels if needed for functions that use them
+    ht.labels = np.array([0, 1, 0, 1, 0])
+    return ht
 
 
 # ------------------------------
@@ -171,7 +173,7 @@ def test_apply_baseline_correction(small_ht):
 def test_resample_wavelengths(small_ht):
     new_wls = np.linspace(400, 700, 6)
     ht_res = pp.resample_wavelengths(small_ht, new_wls)
-    assert ht_res.bands == 6
+    assert ht_res.bands == len(new_wls)  # should now be 6
 
 
 def test_remove_outliers_zscore(small_ht):
