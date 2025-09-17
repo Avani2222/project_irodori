@@ -23,8 +23,6 @@ def sample_hyper_table():
     data.insert(0, "label", ["A", "B", "C"])
 
     ht = HyperTable(data, wavelengths=wavelengths, metadata={"source": "test"})
-    # Assign labels property if needed
-    ht.labels = data["label"].values
     return ht
 
 
