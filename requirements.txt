@@ -7,4 +7,4 @@ scikit-learn>=0.24
 opencv-python>=4.5
 PyWavelets>=1.1
 umap-learn>=0.5
-
+imbalanced-learn>=0.11
