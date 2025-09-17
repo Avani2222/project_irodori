@@ -12,11 +12,24 @@ import irodori.similarity as sim
 # Fixtures
 # ------------------------------
 @pytest.fixture
+@pytest.fixture
 def small_ht():
     np.random.seed(0)
-    data = np.random.rand(5, 6)  # 5 samples, 6 bands
-    df = pd.DataFrame(data, columns=[f"band_{i}" for i in range(6)])
-    return HyperTable(data=df, wavelengths=np.arange(6), metadata={"source": "test"})
+    samples, bands = 5, 6
+    labels = np.random.randint(0, 2, size=samples)   # binary labels
+    spectra = np.random.rand(samples, bands)
+
+    # Build DataFrame with label column first
+    df = pd.DataFrame(
+        np.column_stack([labels, spectra]),
+        columns=["Label"] + [f"band_{i}" for i in range(bands)]
+    )
+
+    return HyperTable(
+        data=df,
+        wavelengths=np.arange(bands),   # matches 6 spectral bands
+        metadata={"source": "test"}
+    )
 
 
 @pytest.fixture
