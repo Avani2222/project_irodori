@@ -3,8 +3,8 @@ import numpy as np
 import pandas as pd
 import pytest
 from irodori.core import Hypertable
-from src.core import HyperTable
-from src.indices import (
+
+from irodori.indices import (
     compute_ndvi,
     compute_ndwi,
     compute_savi,
