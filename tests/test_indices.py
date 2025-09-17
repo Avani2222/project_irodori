@@ -20,6 +20,7 @@ from irodori.indices import (
 # Fixtures
 # -----------------------------
 @pytest.fixture
+@pytest.fixture
 def sample_hyper_table():
     """
     Create a simple HyperTable with synthetic spectral bands.
@@ -28,9 +29,15 @@ def sample_hyper_table():
     wavelengths = np.array([470, 550, 560, 660, 670, 800, 860, 1640, 1650, 2130])
     # 5 samples × 10 bands
     data = np.tile(np.linspace(0.1, 1.0, len(wavelengths)), (5, 1))
-    df = pd.DataFrame(data)
-    labels = np.arange(5)
-    return HyperTable(df, wavelengths=wavelengths, labels=labels)
+    df = pd.DataFrame(data, columns=wavelengths.astype(str))  # use string column names if HyperTable expects it
+
+    # Add labels as a column
+    df.insert(0, "label", np.arange(5))
+
+    ht = HyperTable(df, wavelengths=wavelengths)
+    # Optionally set labels property
+    ht.labels = df["label"].values
+    return ht
 
 
 # -----------------------------
