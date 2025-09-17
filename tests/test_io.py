@@ -90,6 +90,6 @@ def test_save_csv_without_header(sample_hyper_table, tmp_path):
 
 
 def test_save_csv_empty_data(tmp_path):
-    empty_ht = HyperTable(pd.DataFrame(), wavelengths=None, labels=[])
+    empty_ht = HyperTable(pd.DataFrame(), wavelengths=None)
     with pytest.raises(ValueError):
         save_csv(empty_ht, tmp_path / "bad.csv")
