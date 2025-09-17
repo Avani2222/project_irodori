@@ -44,10 +44,18 @@ def mock_hyper_table():
         700: [0.4, 0.5, 0.6, 0.7],
     })
     wavelengths = [400, 450, 500, 550, 600, 650, 700]
-    return HyperTable(data=data, wavelengths=wavelengths, metadata={"test": True})
+    return HyperTable(
+        data=data,
+        samples=data.shape[0],      # 4 samples
+        bands=data.shape[1],        # 7 bands
+        labels=np.array([0, 1, 0, 1]),  # numeric labels for testing
+        wavelengths=wavelengths,
+        metadata={"test": True}
+    )
 
 @pytest.fixture
 def reference_spectrum(mock_hyper_table):
+    # returns first sample's spectrum as numpy array
     return mock_hyper_table.data.iloc[0].values
 
 @pytest.fixture
