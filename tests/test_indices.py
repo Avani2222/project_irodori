@@ -18,8 +18,7 @@ from irodori.indices import (
 
 # -----------------------------
 # Fixtures
-# -----------------------------
-@pytest.fixture
+
 @pytest.fixture
 def sample_hyper_table():
     """
