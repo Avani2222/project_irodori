@@ -109,7 +109,8 @@ def test_band_correlation(mock_hyper_table):
 
 def test_spectral_entropy(mock_hyper_table):
     ent = spectral_entropy(mock_hyper_table, visualize=False)
-    assert ent.shape[0] == mock_hyper_table.bands
+    assert ent.shape[0] == mock_hyper_table.samples
+
 
 def test_cluster_bands(mock_hyper_table):
     clusters = cluster_bands(mock_hyper_table, n_clusters=3)
@@ -118,7 +119,7 @@ def test_cluster_bands(mock_hyper_table):
 
 def test_spectral_snr(mock_hyper_table):
     snr = spectral_snr(mock_hyper_table, visualize=False)
-    assert ent.shape[0] == mock_hyper_table.samples
+    assert snr.shape[0] == mock_hyper_table.samples
 
 def test_spectral_peaks(mock_hyper_table):
     peaks = spectral_peaks(mock_hyper_table, sample_indices=[0, 1], visualize=False)
