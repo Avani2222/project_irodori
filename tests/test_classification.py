@@ -4,7 +4,7 @@ import pandas as pd
 from sklearn.datasets import make_classification
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.svm import SVC
-from irodori.core import hypertable
+from irodori.core import Hypertable
 from your_module_name import (
     split_data, scale_data, apply_pca, train_classifier, evaluate_classifier,
     plot_feature_importance, cross_validate_classifier, full_classification_pipeline,
