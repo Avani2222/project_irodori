@@ -13,10 +13,10 @@ from irodori.dimensionality_reduction import (
 
 # ---- Dummy HyperTable for testing ----
 class DummyHyperTable:
-    def __init__(self):
-        self.data = pd.DataFrame(np.random.rand(20, 10))
-        self.labels = np.random.randint(0, 3, size=20)
-        self.wavelengths = np.linspace(400, 700, 10)
+    def __init__(self, n_samples=20, n_bands=10, with_labels=True):
+        self.data = pd.DataFrame(np.random.rand(n_samples, n_bands))
+        self.labels = np.random.randint(0, 3, size=n_samples) if with_labels else None
+        self.wavelengths = np.linspace(400, 700, n_bands)
         self.spectra = self.data.values
 
     @property
@@ -29,7 +29,7 @@ class DummyHyperTable:
 
 @pytest.fixture
 def ht():
-    return DummyHyperTable()
+    return DummyHyperTable(with_labels=False)
 
 @pytest.fixture
 def ht_labels():
@@ -38,11 +38,11 @@ def ht_labels():
 # ---- Tests start ----
 def test_pca_transform(ht):
     X = pca_transform(ht, n_components=3, visualize=False)
-    assert X.shape == (ht.data.shape[0], 3)
+    assert X.shape == (ht.samples, 3)
 
 def test_ica_transform(ht):
     X = ica_transform(ht, n_components=3, visualize=False)
-    assert X.shape == (ht.data.shape[0], 3)
+    assert X.shape == (ht.samples, 3)
 
 def test_visualize_embedding_tsne(ht):
     X = visualize_embedding(ht, method="tsne", n_components=2, perplexity=5, random_state=0)
@@ -61,22 +61,22 @@ def test_visualize_embedding_invalid(ht):
 
 def test_nmf_decomposition(ht):
     W, H = nmf_decomposition(ht, n_components=3, visualize=False)
-    assert W.shape[0] == ht.data.shape[0]
-    assert H.shape[1] == ht.data.shape[1]
+    assert W.shape[0] == ht.samples
+    assert H.shape[1] == ht.bands
 
 def test_compute_mutual_info_classification(ht_labels):
     y = ht_labels.labels
     mi = compute_mutual_info(ht_labels, y, task="classification", plot=False)
-    assert len(mi) == ht_labels.data.shape[1]
+    assert len(mi) == ht_labels.bands
 
 def test_compute_mutual_info_regression(ht):
-    y = np.random.rand(ht.data.shape[0])
+    y = np.random.rand(ht.samples)
     mi = compute_mutual_info(ht, y, task="regression", plot=False)
-    assert len(mi) == ht.data.shape[1]
+    assert len(mi) == ht.bands
 
 def test_compute_mutual_info_invalid_task(ht):
     with pytest.raises(ValueError):
-        compute_mutual_info(ht, np.random.rand(ht.data.shape[0]), task="bad")
+        compute_mutual_info(ht, np.random.rand(ht.samples), task="bad")
 
 def test_lda_transform(ht_labels):
     X = lda_transform(ht_labels, n_components=2, visualize=False)
@@ -84,44 +84,44 @@ def test_lda_transform(ht_labels):
 
 def test_kernel_pca_transform(ht):
     X = kernel_pca_transform(ht, n_components=2, visualize=False)
-    assert X.shape == (ht.data.shape[0], 2)
+    assert X.shape == (ht.samples, 2)
 
 def test_factor_analysis_transform(ht):
     X = factor_analysis_transform(ht, n_components=2, visualize=False)
-    assert X.shape == (ht.data.shape[0], 2)
+    assert X.shape == (ht.samples, 2)
 
 def test_isomap_transform(ht):
     X = isomap_transform(ht, n_components=2, n_neighbors=3, visualize=False)
-    assert X.shape == (ht.data.shape[0], 2)
+    assert X.shape == (ht.samples, 2)
 
 def test_svd_transform(ht):
     X = svd_transform(ht, n_components=2, visualize=False)
-    assert X.shape == (ht.data.shape[0], 2)
+    assert X.shape == (ht.samples, 2)
 
 def test_spectral_embedding_transform(ht):
     X = spectral_embedding_transform(ht, n_components=2, n_neighbors=3, visualize=False)
-    assert X.shape == (ht.data.shape[0], 2)
+    assert X.shape == (ht.samples, 2)
 
 def test_mds_transform(ht):
     X = mds_transform(ht, n_components=2, visualize=False)
-    assert X.shape == (ht.data.shape[0], 2)
+    assert X.shape == (ht.samples, 2)
 
 def test_kmeans_clustering(ht):
     labels = kmeans_clustering(ht, n_clusters=3, visualize=False)
-    assert len(labels) == ht.data.shape[0]
+    assert len(labels) == ht.samples
 
 def test_gmm_clustering(ht):
     labels = gmm_clustering(ht, n_components=3, visualize=False)
-    assert len(labels) == ht.data.shape[0]
+    assert len(labels) == ht.samples
 
 def test_variance_per_band(ht):
     variances = variance_per_band(ht)
-    assert len(variances) == ht.data.shape[1]
+    assert len(variances) == ht.bands
 
 def test_anova_f_test(ht_labels):
     y = ht_labels.labels
     scores = anova_f_test(ht_labels, y, plot=False)
-    assert len(scores) == ht_labels.data.shape[1]
+    assert len(scores) == ht_labels.bands
 
 def test_smooth_spectra(ht):
     smoothed = smooth_spectra(ht, window_length=5, polyorder=2)
