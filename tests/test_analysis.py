@@ -42,7 +42,7 @@ def mock_hyper_table():
         600: [0.9, 1.0, 1.1, 1.2],
     })
     wavelengths = [400, 500, 600]
-    data["Label"] = labels
+
     ht = HyperTable(data, wavelengths=wavelengths)
     return ht
 
