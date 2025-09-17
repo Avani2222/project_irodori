@@ -52,7 +52,8 @@ def test_apply_savgol_filter(small_ht):
 
 def test_band_average(small_ht):
     ht_avg = pp.band_average(small_ht, window_size=2)
-    assert ht_avg.bands == small_ht.bands // 2
+    expected_bands = small_ht.bands // 2  # or ceil if implementation rounds up
+    assert ht_avg.bands == expected_bands
     assert isinstance(ht_avg, HyperTable)
 
 
