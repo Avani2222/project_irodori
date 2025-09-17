@@ -13,14 +13,19 @@ from irodori.dimensionality_reduction import (
 
 # ---- Dummy HyperTable for testing ----
 class DummyHyperTable:
-    def __init__(self, n_samples=20, n_bands=10, with_labels=True):
-        self.data = pd.DataFrame(
-            np.random.rand(n_samples, n_bands),
-            columns=[f"b{i}" for i in range(n_bands)]
-        )
-        self.labels = np.random.randint(0, 3, size=n_samples) if with_labels else None
-        self.wavelengths = np.linspace(400, 700, n_bands)
-        self.bands = n_bands
+    def __init__(self):
+        self.data = pd.DataFrame(np.random.rand(20, 10))
+        self.labels = np.random.randint(0, 3, size=20)
+        self.wavelengths = np.linspace(400, 700, 10)
+        self.spectra = self.data.values
+
+    @property
+    def samples(self):
+        return self.data.shape[0]
+
+    @property
+    def bands(self):
+        return self.data.shape[1]
 
 @pytest.fixture
 def ht():
