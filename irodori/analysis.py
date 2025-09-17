@@ -651,7 +651,7 @@ def plot_pixel_spectrum(ht: HyperTable, index: int, show_baseline: bool = False)
     
     plt.xlabel(xlabel)
     plt.ylabel("Intensity")
-    plt.title(f"Spectral Signature (Pixel {index}, Label={ht.labels[index]})")
+    plt.title(f"Spectral Signature (Pixel {index})")
     plt.legend()
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
