@@ -3,8 +3,8 @@ import pandas as pd
 import numpy as np
 import pytest
 
-from src.hypertable import HyperTable
-from src.io import load_csv, save_csv  # adjust path if needed
+from irodori.hypertable import HyperTable
+from irodori.io import load_csv, save_csv  # adjust path if needed
 
 
 # -----------------------------
