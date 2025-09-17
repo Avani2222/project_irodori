@@ -4,7 +4,7 @@ import pytest
 import numpy as np
 import pandas as pd
 from irodori.core import HyperTable
-from analysis_module import (
+from irodori.analysis import (
     first_derivative,
     second_derivative,
     smooth_spectra,
