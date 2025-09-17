@@ -638,33 +638,21 @@ def spectral_index(ht: HyperTable, band1: int, band2: int, index_name: str = Non
     df.insert(0, "label", ht.labels)
     return HyperTable(data=df, wavelengths=None, metadata={**ht.metadata, "spectral_index": f"{band1}-{band2}"})
 
-def resample_spectra(ht: HyperTable, new_wavelengths: np.ndarray) -> HyperTable:
-    """
-    Interpolate spectra to new wavelength positions.
-
-    Parameters
-    ----------
-    ht : HyperTable
-    new_wavelengths : np.ndarray
-        New wavelength grid.
-
-    Returns
-    -------
-    HyperTable
-    """
-    if ht.wavelengths is None:
-        raise ValueError("Original wavelengths not defined.")
-
-    resampled_data = []
-    for i in range(ht.samples):
-        spectrum = ht.get_pixel(i)
-        f = interp1d(ht.wavelengths, spectrum, kind="linear", bounds_error=False, fill_value="extrapolate")
-        resampled_data.append(f(new_wavelengths))
-
-    df = pd.DataFrame(resampled_data, columns=[f"band_{i}" for i in range(len(new_wavelengths))])
-    df.insert(0, "label", ht.labels)
-    return HyperTable(data=df, wavelengths=new_wavelengths, metadata={**ht.metadata, "resampled": True})
-
+def resample_spectra(hyper_table, new_wavelengths):
+    from scipy.interpolate import interp1d
+    df = hyper_table.data.copy()
+    label_col = None
+    if "Label" in df.columns:
+        label_col = df.pop("Label")
+    x_old = hyper_table.wavelengths
+    x_new = np.array(new_wavelengths)
+    y_old = df.values
+    f = interp1d(x_old, y_old, kind="linear", axis=1, fill_value="extrapolate")
+    y_new = f(x_new)
+    df_new = pd.DataFrame(y_new, columns=x_new)
+    if label_col is not None:
+        df_new.insert(0, "Label", label_col)
+    return HyperTable(df_new, wavelengths=x_new, metadata=hyper_table.metadata)
 def estimate_snr(ht: HyperTable, band_range: tuple = None) -> np.ndarray:
     """
     Estimate SNR as mean / std in selected band range.
