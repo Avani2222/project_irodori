@@ -22,7 +22,7 @@ from scipy.signal import savgol_filter
 
 
 def first_derivative(
-    hyper_table: "HyperTable",
+    hyper_table: HyperTable,
     show_plot: bool = False,
     sample_indices: list = None
 ) -> "HyperTable":
@@ -92,7 +92,7 @@ def first_derivative(
 
     return derivative_ht
   
-def plot_spectral_signatures(hyper_table: "HyperTable",
+def plot_spectral_signatures(hyper_table: HyperTable,
                              sample_indices: list = None,
                              labels: bool = True,
                              title: str = "Spectral Signatures",
@@ -158,7 +158,7 @@ def plot_spectral_signatures(hyper_table: "HyperTable",
 
 
 
-def second_derivative(hyper_table: "HyperTable",
+def second_derivative(hyper_table: HyperTable,
                       window_length: int = 7,
                       polyorder: int = 2) -> "HyperTable":
     """
@@ -204,7 +204,7 @@ def second_derivative(hyper_table: "HyperTable",
 
 
 
-def anova_f_test(hyper_table: "HyperTable",
+def anova_f_test(hyper_table: HyperTable,
                  top_k: int = 10,
                  visualize: bool = True,
                  figsize: tuple = (10, 5)) -> pd.DataFrame:
