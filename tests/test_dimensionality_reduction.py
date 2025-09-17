@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 import pytest
 from irodori.core import HyperTable
-from your_module_name import (
+from irodori.dimensionality_reduction import (
     pca_transform, ica_transform, visualize_embedding, nmf_decomposition,
     compute_mutual_info, lda_transform, kernel_pca_transform,
     factor_analysis_transform, isomap_transform, svd_transform,
