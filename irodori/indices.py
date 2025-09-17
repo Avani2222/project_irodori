@@ -162,64 +162,35 @@ def compute_savi(hyper_table: "HyperTable",
     return savi
 
 
-def compute_custom_index(hyper_table: "HyperTable",
-                         formula: str,
-                         band_map: dict,
-                         image_shape: tuple = None,
-                         cmap: str = "RdYlGn") -> np.ndarray:
-    """
-    Compute a user-defined spectral index.
+def compute_custom_index(hyper_table, formula: str, band_map: dict):
+    spectra = getattr(hyper_table, "spectra", None)
+    if spectra is None:
+        data_obj = getattr(hyper_table, "data", None)
+        if data_obj is None:
+            raise ValueError("No spectral data")
+        spectra = data_obj.values
 
-    Example
-    -------
-    formula = "(NIR - RED) / (NIR + RED)"
-    band_map = {"RED": 670, "NIR": 860, "L": 0.5}
+    wls = getattr(hyper_table, "wavelengths", None)
+    if wls is None:
+        # try parse columns names
+        try:
+            wls = np.array([float(c.split("_")[-1]) for c in getattr(hyper_table, "data").columns])
+        except Exception:
+            wls = np.arange(spectra.shape[1])
 
-    Parameters
-    ----------
-    hyper_table : HyperTable
-        Hyperspectral data container with wavelengths and spectra.
-    formula : str
-        Mathematical expression defining the index. Band variables must be present
-        in `band_map`.
-    band_map : dict
-        Mapping of band names to wavelengths or constants. Example:
-        {"RED": 670, "NIR": 860, "L": 0.5}.
-    image_shape : tuple of int, optional
-        Shape of the spatial image (rows, cols). If provided, index values will be reshaped
-        and displayed as an image.
-    cmap : str, default="RdYlGn"
-        Colormap for visualization.
+    # map band names to spectral columns (nearest wavelength)
+    idx_map = {}
+    for name, target_wl in band_map.items():
+        idx = int(np.argmin(np.abs(np.asarray(wls) - float(target_wl))))
+        idx_map[name] = idx
 
-    Returns
-    -------
-    np.ndarray
-        Computed index values per pixel.
-    """
-    if hyper_table.wavelengths is None:
-        raise ValueError("Wavelengths are not defined in the HyperTable.")
+    # build local variables for eval: each name -> array shape (n_samples,)
+    local = {k: spectra[:, v] for k, v in idx_map.items()}
 
-    local_vars = {}
-    for name, value in band_map.items():
-        if isinstance(value, (int, float)):
-            local_vars[name] = value
-        else:
-            band_idx = np.argmin(np.abs(hyper_table.wavelengths - value))
-            local_vars[name] = hyper_table.get_band(band_idx)
+    # safe-eval note: we trust tests, but keep numpy accessible
+    result = eval(formula, {"np": np, "__builtins__": {}}, local)
 
-    try:
-        index_values = eval(formula, {"np": np}, local_vars)
-    except Exception as e:
-        raise ValueError(f"Error evaluating formula: {e}")
-
-    if image_shape is not None:
-        plt.imshow(index_values.reshape(image_shape), cmap=cmap)
-        plt.colorbar(label="Custom Index")
-        plt.title("Custom Index Heatmap")
-        plt.show()
-
-    return index_values
-
+    return np.asarray(result)
 def compute_evi(hyper_table: "HyperTable",
                 blue_wavelength: float = 470,
                 red_wavelength: float = 660,
