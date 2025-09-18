@@ -159,8 +159,8 @@ def plot_spectral_signatures(hyper_table: "HyperTable",
 
 
 def second_derivative(hyper_table: "HyperTable",
-                      window_length: int = 7,
-                      polyorder: int = 2) -> "HyperTable":
+                      window_length: int,
+                      polyorder: int) -> "HyperTable":
     """
     Compute the second derivative spectra of all samples using Savitzky–Golay filter.
 
