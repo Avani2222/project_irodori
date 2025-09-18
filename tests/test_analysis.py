@@ -71,7 +71,7 @@ def test_first_derivative(mock_hyper_table):
     assert deriv_ht.data.shape == mock_hyper_table.data.shape
 
 def test_second_derivative(mock_hyper_table):
-    deriv2_ht = second_derivative(mock_hyper_table)
+    deriv2_ht = second_derivative(mock_hyper_table, window_length=5, polyorder=2)
     assert deriv2_ht.data.shape[1] == mock_hyper_table.bands
 
 def test_smooth_spectra(mock_hyper_table):
