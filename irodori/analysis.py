@@ -159,8 +159,8 @@ def plot_spectral_signatures(hyper_table: "HyperTable",
 
 
 def second_derivative(hyper_table: "HyperTable",
-                      window_length: int = 7,
-                      polyorder: int = 2) -> "HyperTable":
+                      window_length: int,
+                      polyorder: int) -> "HyperTable":
     """
     Compute the second derivative spectra of all samples using Savitzky–Golay filter.
 
@@ -651,7 +651,7 @@ def plot_pixel_spectrum(ht: HyperTable, index: int, show_baseline: bool = False)
     
     plt.xlabel(xlabel)
     plt.ylabel("Intensity")
-    plt.title(f"Spectral Signature (Pixel {index}, Label={ht.labels[index]})")
+    plt.title(f"Spectral Signature (Pixel {index})")
     plt.legend()
     plt.grid(True, alpha=0.3)
     plt.tight_layout()

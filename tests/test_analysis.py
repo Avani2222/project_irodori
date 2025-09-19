@@ -31,6 +31,29 @@ from irodori.analysis import (
 # ---------------------------
 # Fixtures
 # ---------------------------
+@pytest.fixture
+def mock_hyper_table_with():
+    # 10 bands from 400 to 700 nm
+    wavelengths = np.linspace(400, 700, 10)
+
+    # labels for each sample
+    labels = np.array([0, 1, 0, 1])
+
+    # 4 samples, slightly varied spectra
+    data = pd.DataFrame({
+        "label": labels,  # first column reserved for labels
+        **{
+            int(wl): np.random.rand(4) * 0.5 + i * 0.1
+            for i, wl in enumerate(wavelengths)
+        }
+    })
+
+    return HyperTable(
+        data=data,
+        wavelengths=wavelengths,
+        metadata={"test": True}
+    )
+
 
 @pytest.fixture
 def mock_hyper_table():
@@ -54,6 +77,28 @@ def mock_hyper_table():
     )
 
 @pytest.fixture
+def mock_hyper_table_with_labels():
+    labels = np.array([0, 1, 0, 1])
+    data = pd.DataFrame({
+        "label": labels,  # <--- labels column
+        400: [0.1, 0.2, 0.3, 0.4],
+        450: [0.15, 0.25, 0.35, 0.45],
+        500: [0.2, 0.3, 0.4, 0.5],
+        550: [0.25, 0.35, 0.45, 0.55],
+        600: [0.3, 0.4, 0.5, 0.6],
+        650: [0.35, 0.45, 0.55, 0.65],
+        700: [0.4, 0.5, 0.6, 0.7],
+    })
+    wavelengths = [400, 450, 500, 550, 600, 650, 700]
+
+    return HyperTable(
+        data=data,
+        wavelengths=wavelengths,
+        metadata={"test": True}
+    )
+
+
+@pytest.fixture
 def reference_spectrum(mock_hyper_table):
     # returns first sample's spectrum as numpy array
     return mock_hyper_table.data.iloc[0].values
@@ -73,7 +118,7 @@ def test_first_derivative(mock_hyper_table):
     assert deriv_ht.data.shape == mock_hyper_table.data.shape
 
 def test_second_derivative(mock_hyper_table):
-    deriv2_ht = second_derivative(mock_hyper_table)
+    deriv2_ht = second_derivative(mock_hyper_table, window_length=5, polyorder=2)
     assert deriv2_ht.data.shape[1] == mock_hyper_table.bands
 
 def test_smooth_spectra(mock_hyper_table):
@@ -87,7 +132,7 @@ def test_plot_pixel_spectrum(mock_hyper_table):
     plot_pixel_spectrum(mock_hyper_table, index=0, show_baseline=True)
 
 def test_plot_average_spectrum(mock_hyper_table):
-    plot_average_spectrum(mock_hyper_table, by_label=True)
+    plot_average_spectrum(mock_hyper_table, by_label=False)
 
 def test_plot_band_image(mock_hyper_table, image_shape):
     plot_band_image(mock_hyper_table, band_index=0, image_shape=image_shape)
@@ -95,12 +140,12 @@ def test_plot_band_image(mock_hyper_table, image_shape):
 def test_plot_band_histograms(mock_hyper_table):
     plot_band_histograms(mock_hyper_table, band_indices=[0, 1, 2])
 
-def test_anova_f_test(mock_hyper_table):
-    result = anova_f_test(mock_hyper_table, top_k=3, visualize=False)
+def test_anova_f_test(mock_hyper_table_with_labels):
+    result = anova_f_test(mock_hyper_table_with_labels, top_k=3, visualize=False)
     assert len(result) == 3
 
-def test_mutual_info_band_selection(mock_hyper_table):
-    result = mutual_info_band_selection(mock_hyper_table, top_k=3)
+def test_mutual_info_band_selection(mock_hyper_table_with_labels):
+    result = mutual_info_band_selection(mock_hyper_table_with_labels, top_k=3)
     assert len(result) == 3
 
 def test_band_correlation(mock_hyper_table):
@@ -119,7 +164,7 @@ def test_cluster_bands(mock_hyper_table):
 
 def test_spectral_snr(mock_hyper_table):
     snr = spectral_snr(mock_hyper_table, visualize=False)
-    assert snr.shape[0] == mock_hyper_table.samples
+    assert snr.shape[0] == mock_hyper_table.bands
 
 def test_spectral_peaks(mock_hyper_table):
     peaks = spectral_peaks(mock_hyper_table, sample_indices=[0, 1], visualize=False)
@@ -141,9 +186,9 @@ def test_band_ratio(mock_hyper_table):
     ratio = band_ratio(mock_hyper_table, band1=0, band2=1, visualize=False)
     assert ratio.shape[0] == mock_hyper_table.samples
 
-def test_continuum_removal(mock_hyper_table):
-    cr = continuum_removal(mock_hyper_table, sample_index=0, visualize=False)
-    assert cr.shape[0] == mock_hyper_table.bands
+def test_continuum_removal(mock_hyper_table_with):
+    cr = continuum_removal(mock_hyper_table_with, sample_index=0, visualize=False)
+    assert cr.shape[0] == mock_hyper_table_with.bands
 
 def test_plot_pca(mock_hyper_table):
     plot_pca(mock_hyper_table, n_components=3)

@@ -12,25 +12,14 @@ class HyperTable:
     A class to store and manage hyperspectral data in tabular (DataFrame) format.
 
     Each row corresponds to a sample/pixel and each column corresponds to a spectral band.
-
-    Attributes
-    ----------
-    labels : np.ndarray or None
-        Array of labels for each sample (first column of DataFrame if present).
-    data : pd.DataFrame
-        Hyperspectral dataset with samples as rows and bands as columns.
-    wavelengths : np.ndarray or None
-        Array of wavelength values corresponding to each band (column).
-    metadata : dict
-        Dictionary to store additional information (e.g., file source, sensor type).
-    spectra : np.ndarray
-        Numpy array of the spectral data (rows = samples, columns = bands).
     """
 
-    def __init__(self,
-                 data: pd.DataFrame,
-                 wavelengths: Optional[Union[List[float], np.ndarray]] = None,
-                 metadata: Optional[Dict[str, Any]] = None):
+    def __init__(
+        self,
+        data: pd.DataFrame,
+        wavelengths: Optional[Union[List[float], np.ndarray]] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+    ):
         """
         Initialize the HyperTable object.
 
@@ -50,42 +39,73 @@ class HyperTable:
             If wavelengths are provided but do not match number of columns.
         """
         if not isinstance(data, pd.DataFrame):
+            raise ValueError("`data` must be a pandas DataFrame.")
+
+        if data.empty:
+            raise ValueError("`data` cannot be empty.")
+        if data.empty:
+            raise ValueError("Cannot initialize HyperTable with an empty DataFrame.")
+        if not isinstance(data, pd.DataFrame):
             raise ValueError("Input 'data' must be a pandas DataFrame.")
 
-        n_cols = data.shape[1]
+        self.metadata = metadata or {}
 
-        # Determine label column based on wavelengths
+        # Handle completely empty data
+        if data.empty:
+            self.labels = np.array([])
+            self.data = pd.DataFrame()
+            self.wavelengths = (
+                np.asarray(wavelengths) if wavelengths is not None else np.array([])
+            )
+            self.spectra = np.empty((0, 0))
+            return
+
+        n_cols = data.shape[1]
         if wavelengths is not None:
             wl_array = np.asarray(wavelengths)
             if wl_array.ndim != 1:
                 raise ValueError("Wavelengths must be a 1D array.")
 
-            # Case A: wavelengths length equals number of columns -> purely spectral
+    # Case A: wavelengths length equals number of columns -> purely spectral
             if len(wl_array) == n_cols:
                 self.labels = None
                 self.data = data.copy()
 
-            # Case B: wavelengths length equals cols-1 -> first column is label
+    # Case B: wavelengths length equals cols-1 -> first column is label
             elif len(wl_array) == (n_cols - 1):
                 self.labels = data.iloc[:, 0].values
                 self.data = data.iloc[:, 1:].copy()
 
             else:
                 raise ValueError(
-                    f"Number of wavelengths ({len(wl_array)}) does not match number of columns ({n_cols}) "
-                    f"or number of bands ({n_cols - 1})."
+                f"Number of wavelengths ({len(wl_array)}) does not match "
+                f"number of columns ({n_cols}) or number of bands ({n_cols - 1})."
                 )
 
             self.wavelengths = wl_array
 
-        else:
-            # No wavelengths provided — assume first column is labels
-            self.labels = data.iloc[:, 0].values
-            self.data = data.iloc[:, 1:].copy()
-            self.wavelengths = None
 
-        self.spectra = self.data.values  # legacy-friendly n_samples x n_bands array
-        self.metadata = metadata or {}
+        else:
+            # No wavelengths provided
+            if n_cols == 1:
+                # Only labels, no spectral bands
+                self.labels = data.iloc[:, 0].values
+                self.data = pd.DataFrame()
+                self.wavelengths = np.array([])
+
+            else:
+                # Assume first column is labels, rest are spectral bands
+                self.labels = data.iloc[:, 0].values
+                self.data = data.iloc[:, 1:].copy()
+                try:
+                    # Try parsing column headers as numeric wavelengths
+                    self.wavelengths = np.array(self.data.columns, dtype=float)
+                except (ValueError, TypeError):
+                    # Non-numeric headers → derived features (NDI, PCA, etc.)
+                    self.wavelengths = None
+
+        self.spectra = self.data.values  # n_samples x n_bands
+        self.metadata = metadata or {}  # n_samples x n_bands# n_samples x n_bands
 
     @property
     def shape(self) -> tuple:

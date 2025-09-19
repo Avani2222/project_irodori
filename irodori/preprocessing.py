@@ -24,7 +24,13 @@ from typing import List, Tuple, Optional, Union
 # ==============================
 # Helper to rebuild HyperTable
 # ==============================
-def _rebuild_hypertable(hyper_table, new_df: pd.DataFrame, metadata_updates: Optional[dict] = None, filtered_indices: Optional[np.ndarray] = None):
+def _rebuild_hypertable(
+    hyper_table,
+    new_df: pd.DataFrame,
+    metadata_updates: Optional[dict] = None,
+    filtered_indices: Optional[np.ndarray] = None,
+    wavelengths: Optional[np.ndarray] = None,
+):
     """
     Build a new HyperTable from a DataFrame `new_df`. Ensures that the labels match the filtered rows
     and computes a new wavelengths array if needed.
@@ -39,6 +45,8 @@ def _rebuild_hypertable(hyper_table, new_df: pd.DataFrame, metadata_updates: Opt
         Updates to original metadata.
     filtered_indices : np.ndarray, optional
         Row indices from the original hyper_table that correspond to new_df rows.
+    wavelengths : np.ndarray, optional
+        Explicit wavelengths to set for the new HyperTable.
 
     Returns
     -------
@@ -48,7 +56,8 @@ def _rebuild_hypertable(hyper_table, new_df: pd.DataFrame, metadata_updates: Opt
 
     # handle labels
     if hasattr(hyper_table, "labels") and hyper_table.labels is not None:
-        if filtered_indices is not None:
+        if filtered_indices is not None and isinstance(filtered_indices, (list, np.ndarray)):
+            # only use indices if it's a valid index array
             filtered_labels = np.array(hyper_table.labels)[filtered_indices]
         else:
             filtered_labels = np.array(hyper_table.labels)
@@ -57,26 +66,26 @@ def _rebuild_hypertable(hyper_table, new_df: pd.DataFrame, metadata_updates: Opt
         if "Label" not in df.columns and df.shape[1] == getattr(hyper_table, "bands", df.shape[1]):
             df.insert(0, "Label", filtered_labels)
         else:
-            # if label column exists, replace with filtered labels
             df.iloc[:, 0] = filtered_labels
 
-    # compute new wavelengths
-    old_wl = getattr(hyper_table, "wavelengths", None)
-    n_new_bands = df.shape[1] - (1 if "Label" in df.columns else 0)
-
-    new_wavelengths = None
-    if old_wl is not None:
-        old_wl = np.asarray(old_wl)
-        n_old = len(old_wl)
-        if n_new_bands == n_old:
-            new_wavelengths = old_wl.copy()
-        else:
-            # fallback: group old wavelengths evenly
-            edges = np.linspace(0, n_old, n_new_bands + 1, dtype=int)
-            new_wavelengths = np.array([
-                old_wl[edges[i]:edges[i+1]].mean() if edges[i+1] > edges[i] else old_wl[min(edges[i], n_old-1)]
-                for i in range(n_new_bands)
-            ])
+    # wavelengths
+    if wavelengths is not None:
+        new_wavelengths = np.asarray(wavelengths)
+    else:
+        old_wl = getattr(hyper_table, "wavelengths", None)
+        n_new_bands = df.shape[1] - (1 if "Label" in df.columns else 0)
+        new_wavelengths = None
+        if old_wl is not None:
+            old_wl = np.asarray(old_wl)
+            n_old = len(old_wl)
+            if n_new_bands == n_old:
+                new_wavelengths = old_wl.copy()
+            else:
+                edges = np.linspace(0, n_old, n_new_bands + 1, dtype=int)
+                new_wavelengths = np.array([
+                    old_wl[edges[i]:edges[i+1]].mean() if edges[i+1] > edges[i] else old_wl[min(edges[i], n_old-1)]
+                    for i in range(n_new_bands)
+                ])
 
     # merge metadata
     new_meta = dict(getattr(hyper_table, "metadata", {}) or {})
@@ -332,30 +341,28 @@ def remove_noisy_bands(hyper_table: "HyperTable", wavelength_range: tuple = None
 
 
 def select_wavelength_range(hyper_table: "HyperTable", ranges: list[tuple[float, float]]) -> "HyperTable":
-    """
-    Select bands within given wavelength ranges.
-
-    Parameters
-    ----------
-    hyper_table : HyperTable
-        Input dataset.
-    ranges : list of (min_wl, max_wl)
-        Wavelength ranges to keep.
-
-    Returns
-    -------
-    HyperTable
-        Dataset with only selected bands.
-    """
     if hyper_table.wavelengths is None:
         raise ValueError("Wavelengths are not defined in this HyperTable.")
 
-    keep_mask = np.zeros(hyper_table.bands, dtype=bool)
+    keep_mask = np.zeros(len(hyper_table.wavelengths), dtype=bool)
     for min_wl, max_wl in ranges:
         keep_mask |= (hyper_table.wavelengths >= min_wl) & (hyper_table.wavelengths <= max_wl)
 
+    if not np.any(keep_mask):
+        raise ValueError(f"No wavelengths found in the specified ranges: {ranges}")
+
     filtered_data = hyper_table.data.iloc[:, keep_mask]
-    return _rebuild_hypertable(hyper_table, filtered_data, {"filter": f"selected_ranges={ranges}"})
+    filtered_wavelengths = hyper_table.wavelengths[keep_mask]
+
+    new_metadata = hyper_table.metadata.copy()
+    new_metadata["filter"] = f"selected_ranges={ranges}"
+
+    return _rebuild_hypertable(
+        hyper_table,
+        filtered_data,
+        metadata_updates=new_metadata,   # ✅ correct name
+        wavelengths=filtered_wavelengths, # ✅ proper slot
+    )
 
 
 # ==============================

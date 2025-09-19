@@ -339,20 +339,19 @@ def load_model(filepath: str):
 # ------------------------------
 # 9. Precision-Recall Curves
 # ------------------------------
+from sklearn.preprocessing import label_binarize
+from sklearn.metrics import precision_recall_curve
+import matplotlib.pyplot as plt
+import numpy as np
+
+from sklearn.preprocessing import label_binarize
+from sklearn.metrics import precision_recall_curve
+import matplotlib.pyplot as plt
+import numpy as np
+
 def plot_precision_recall(clf, X_test, y_test, class_names=None):
     """
-    Plot precision-recall curves for multiclass classification.
-
-    Parameters
-    ----------
-    clf : classifier with predict_proba
-        Trained classifier.
-    X_test : np.ndarray
-        Test feature matrix.
-    y_test : np.ndarray
-        True labels.
-    class_names : list, optional
-        Names of the classes. If None, class indices are used.
+    Plot precision-recall curves for binary or multiclass classification.
     """
     if not hasattr(clf, "predict_proba"):
         raise ValueError("Classifier must support predict_proba.")
@@ -360,28 +359,42 @@ def plot_precision_recall(clf, X_test, y_test, class_names=None):
     y_score = clf.predict_proba(X_test)
     y_score = np.asarray(y_score)
 
-    n_classes = len(np.unique(y_test))
-    y_true_bin = label_binarize(y_test, classes=np.unique(y_test))
+    classes = np.unique(y_test)
+    n_classes = len(classes)
 
-    # normalize/reshape y_score to (n_samples, n_classes)
-    if y_score.ndim == 1:
-        # single-column probabilities for the positive class -> build 2-col array
-        if n_classes == 2:
+    # Ensure y_true_bin has same number of columns as y_score
+    if n_classes == 2:
+        # Force 2 columns (0 and 1)
+        y_true_bin = label_binarize(y_test, classes=[0, 1])
+        if y_true_bin.shape[1] == 1:  # happens for binary case
+            y_true_bin = np.hstack([1 - y_true_bin, y_true_bin])
+    else:
+        y_true_bin = label_binarize(y_test, classes=classes)
+
+    # Ensure y_score has shape (n_samples, n_classes)
+    if n_classes == 2:
+        if y_score.ndim == 1:
             y_score = np.vstack([1 - y_score, y_score]).T
-        else:
-            raise ValueError("predict_proba returned 1d array but there are multiple classes.")
-    elif y_score.shape[1] == 1 and n_classes == 2:
-        # some models give single column for prob of positive class
-        y_score = np.hstack([1 - y_score, y_score])
+        elif y_score.shape[1] == 1:
+            y_score = np.hstack([1 - y_score, y_score])
     elif y_score.shape[1] != n_classes:
-        # fallback: try to shape to expected classes if possible
-        raise ValueError(f"predict_proba returned shape {y_score.shape}, expected number of classes {n_classes}")
+        raise ValueError(
+            f"predict_proba returned shape {y_score.shape}, "
+            f"but expected (n_samples, {n_classes})"
+        )
 
     plt.figure(figsize=(8, 6))
     for i in range(n_classes):
         precision, recall, _ = precision_recall_curve(y_true_bin[:, i], y_score[:, i])
-        # ... plotting code follows as before
+        label = class_names[i] if class_names else f"Class {i}"
+        plt.plot(recall, precision, label=label)
 
+    plt.xlabel("Recall")
+    plt.ylabel("Precision")
+    plt.title("Precision-Recall Curve")
+    plt.legend()
+    plt.grid(True)
+    return plt.gcf()
 
 # ------------------------------
 # 10. Class-wise Metrics Table
