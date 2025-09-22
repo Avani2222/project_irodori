@@ -34,7 +34,9 @@ Internal helper for rebuilding HyperTable after preprocessing steps.
 
 **2. minmax_scale**
 **Signature:**
+```python
 minmax_scale(hyper_table: HyperTable, feature_range=(0, 1), axis: int = 0) -> HyperTable
+```
 **Description:**
 Applies Min–Max scaling to spectral data.
 **Parameters:**
@@ -51,7 +53,9 @@ Normalize spectra to a fixed range, useful before PCA or machine learning.
 
 **3. standardize**
 **Signature:**
+```python
 standardize(hyper_table: HyperTable, axis: int = 0) -> HyperTable
+```
 Description:
 Applies Z-score standardization.
 **Parameters:**
@@ -66,8 +70,11 @@ Removes scale differences, commonly used before clustering or classification.
 ---
 
 **4. vector_normalize**
+
 **Signature:**
+```python
 vector_normalize(hyper_table: HyperTable) -> HyperTable
+```
 **Description:**
 Normalize each spectrum to unit Euclidean norm (L2 normalization).
 **Returns:**
@@ -80,6 +87,7 @@ Used when magnitude differences are not important, e.g., spectral similarity cal
 
 **5. apply_savgol_filter**
 **Signature:**
+```python
 apply_savgol_filter(
     hyper_table: HyperTable,
     window_length: int = 11,
@@ -87,6 +95,7 @@ apply_savgol_filter(
     deriv: int = 0,
     axis: int = 1
 ) -> HyperTable
+```
 **Description:**
 Apply Savitzky–Golay smoothing or derivative filtering.
 **Parameters:**
